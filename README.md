@@ -82,8 +82,6 @@ Grant Sentinel aggregates opportunities from 55+ public funding sources worldwid
 
 The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP).
 
-The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP). 
-
 ### Sources Page
 
 The dedicated **Sources** page (`/sources`) is the central hub for managing all aspects of the system:
