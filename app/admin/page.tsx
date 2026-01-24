@@ -123,6 +123,8 @@ function SourcesTab({
   sources: Awaited<ReturnType<typeof fetchFundingSources>>["sources"];
   warning?: string;
 }) {
+  const filteredSources = sources.slice();
+
   async function handleSourceSync(formData: FormData) {
     "use server";
     const sourceId = String(formData.get("sourceId") ?? "").trim();
@@ -151,6 +153,32 @@ function SourcesTab({
     revalidatePath("/admin?tab=sources");
   }
 
+  async function handleSourceToggle(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const active = String(formData.get("active") ?? "") === "true";
+    if (!sourceId) return;
+    await updateFundingSource(sourceId, { active });
+    revalidatePath("/admin?tab=sources");
+  }
+
+  async function handleRowSync(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const maxNotices = Number(formData.get("maxNotices") ?? "");
+    if (!sourceId) return;
+    await syncFundingSource(sourceId, {
+      maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
+    });
+    revalidatePath("/admin?tab=sources");
+  }
+
+  const activeCount = sources.filter((source) => source.active).length;
+  const failedCount = sources.filter((source) => source.lastStatus === "failed").length;
+  const bulkCount = sources.filter((source) =>
+    ["bulk_xml_zip", "bulk_xml", "bulk_json"].includes(source.integrationType)
+  ).length;
+
   return (
     <section className="grid">
       {warning ? (
@@ -158,6 +186,25 @@ function SourcesTab({
           {warning}
         </div>
       ) : null}
+
+      <div className="grid grid-3">
+        <div className="card">
+          <p className="muted">Total sources</p>
+          <h3 style={{ margin: "6px 0 0" }}>{sources.length}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">Active sources</p>
+          <h3 style={{ margin: "6px 0 0" }}>{activeCount}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">Bulk integrations</p>
+          <h3 style={{ margin: "6px 0 0" }}>{bulkCount}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">Failed syncs</p>
+          <h3 style={{ margin: "6px 0 0" }}>{failedCount}</h3>
+        </div>
+      </div>
 
       <div className="grid grid-2">
         <div className="card">
@@ -227,46 +274,116 @@ function SourcesTab({
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Source registry</h3>
-        {sources.length ? (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Type</th>
-                <th>Auto URL</th>
-                <th>Active</th>
-                <th>Expected</th>
-                <th>Last sync</th>
-                <th>Last ingested</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sources.map((source) => (
-                <tr key={source.id}>
-                  <td>
-                    <div>{source.name}</div>
-                    <div className="muted" style={{ fontSize: "12px" }}>
+        {filteredSources.length ? (
+          <div className="grid">
+            {filteredSources.map((source) => (
+              <div key={source.id} className="card card--flat">
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                  <div>
+                    <h4 style={{ margin: 0 }}>{source.name}</h4>
+                    <p className="muted" style={{ margin: "6px 0 0" }}>
                       {source.country ?? "Global"} - {source.id}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <span className="pill">{source.integrationType}</span>
+                    <span className={`badge badge--${source.active ? "good" : "muted"}`}>
+                      {source.active ? "Active" : "Inactive"}
+                    </span>
+                    <span
+                      className={`badge badge--${
+                        source.lastStatus === "failed" ? "low" : source.lastStatus === "success" ? "good" : "muted"
+                      }`}
+                    >
+                      {source.lastStatus ?? "No status"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-3" style={{ marginTop: "16px" }}>
+                  <div>
+                    <p className="muted">Auto URL</p>
+                    <p style={{ margin: 0 }}>{source.autoUrl ?? "Not set"}</p>
+                  </div>
+                  <div>
+                    <p className="muted">Last sync</p>
+                    <p style={{ margin: 0 }}>{source.lastSync ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="muted">Last ingested</p>
+                    <p style={{ margin: 0 }}>{source.lastIngested ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="muted">Expected volume</p>
+                    <p style={{ margin: 0 }}>{source.expectedResults ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="muted">Homepage</p>
+                    {source.homepage ? (
+                      <a href={source.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
+                        Visit portal
+                      </a>
+                    ) : (
+                      <p style={{ margin: 0 }}>—</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="muted">Last error</p>
+                    <p style={{ margin: 0 }}>{source.lastError ?? "—"}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-3" style={{ marginTop: "16px" }}>
+                  <form className="grid" action={handleRowSync}>
+                    <input type="hidden" name="sourceId" value={source.id} />
+                    <label style={{ display: "grid", gap: "6px" }}>
+                      <span className="pill">Max notices</span>
+                      <input className="input" name="maxNotices" placeholder="500" />
+                    </label>
+                    <button className="button" type="submit">
+                      Sync now
+                    </button>
+                  </form>
+
+                  <form className="grid" action={handleSourceUpdate}>
+                    <input type="hidden" name="sourceId" value={source.id} />
+                    <label style={{ display: "grid", gap: "6px" }}>
+                      <span className="pill">Integration type</span>
+                      <select className="select" name="integrationType" defaultValue={source.integrationType}>
+                        {INTEGRATION_TYPE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ display: "grid", gap: "6px" }}>
+                      <span className="pill">Auto URL</span>
+                      <input className="input" name="autoUrl" defaultValue={source.autoUrl ?? ""} />
+                    </label>
+                    <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <input type="checkbox" name="active" defaultChecked={source.active} />
+                      <span className="pill">Enable cron sync</span>
+                    </label>
+                    <button className="button button--secondary" type="submit">
+                      Save settings
+                    </button>
+                  </form>
+
+                  <form className="grid" action={handleSourceToggle}>
+                    <input type="hidden" name="sourceId" value={source.id} />
+                    <input type="hidden" name="active" value={source.active ? "false" : "true"} />
+                    <div>
+                      <p className="muted">Quick toggle</p>
+                      <button className="button button--secondary" type="submit">
+                        {source.active ? "Disable source" : "Enable source"}
+                      </button>
                     </div>
-                  </td>
-                  <td>{source.integrationType}</td>
-                  <td>
-                    {source.autoUrl
-                      ? source.autoUrl.length > 32
-                        ? source.autoUrl.slice(0, 32) + "..."
-                        : source.autoUrl
-                      : "—"}
-                  </td>
-                  <td>{source.active ? "Yes" : "No"}</td>
-                  <td>{source.expectedResults ?? "—"}</td>
-                  <td>{source.lastSync ?? "—"}</td>
-                  <td>{source.lastIngested ?? 0}</td>
-                  <td>{source.lastStatus ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="muted">No sources configured yet. Seed the registry in D1 to get started.</p>
         )}
