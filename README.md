@@ -21,79 +21,6 @@ opportunities, and assigns feasibility scores using Workers AI.
 - Vector embeddings are stored in Vectorize for semantic search.
 - Daily brief notifications can be delivered via webhook.
 
-## Repo Layout
-
-- `app/` Next.js App Router dashboard with pages: Dashboard, Sources, AI Analysis
-- `components/` UI components including Navigation, SourceRowWrapper, and SourceRowActions
-- `lib/` API client and shared types
-- `workers/` Cloudflare Worker ingestion pipeline
-- `db/schema.sql` D1 schema for metadata, documents, and analyses
-- `db/seed_sources.sql` global funding source registry seed data
-- `wrangler.toml` Cloudflare bindings and cron schedule
-
-## Requirements
-
-- Node.js 20+
-- Cloudflare Wrangler CLI
-- Cloudflare account with D1, R2, Queues, Vectorize
-
-## Local Development
-
-```bash
-npm install
-npm run worker:dev  # Start the backend Worker
-npm run dev         # Start the Next.js frontend
-```
-
-Set `GRANT_SENTINEL_API_URL` (or `NEXT_PUBLIC_GRANT_SENTINEL_API_URL`) to your Worker endpoint so the dashboard can read data:
-
-```bash
-export GRANT_SENTINEL_API_URL="http://localhost:8787"
-```
-
-### Frontend Deployment
-
-The frontend is deployed to Cloudflare Workers using `@opennextjs/cloudflare`:
-
-```bash
-npm run build:cloudflare
-npm run frontend:deploy
-```
-
-## Cloudflare Setup
-
-1. Create a D1 database and update `wrangler.toml` with its ID.
-2. Create R2 buckets:
-   - `grant-sentinel-pdfs` (for PDF documents)
-   - `grant-sentinel-frontend-assets` (for frontend static assets)
-   - `grant-sentinel-next-cache` (for Next.js incremental cache)
-3. Create a Queue named `grant-sentinel-pdf`.
-4. Create a Vectorize index named `grant-sentinel-index`.
-5. Apply schema:
-
-```bash
-wrangler d1 execute grant_sentinel --file db/schema.sql
-```
-
-6. Seed the global funding source registry (optional but recommended):
-
-```bash
-wrangler d1 execute grant_sentinel --file db/seed_sources.sql
-```
-
-## Secrets
-
-```bash
-wrangler secret put GRANTS_GOV_API_KEY
-wrangler secret put SAM_GOV_API_KEY
-wrangler secret put HRSA_API_KEY
-wrangler secret put COMPANY_PROFILE
-wrangler secret put NOTIFICATION_WEBHOOK_URL
-wrangler secret put ADMIN_API_KEY  # Optional: Required for write operations (POST, PATCH, DELETE) on admin endpoints
-```
-
-**Note**: The `ADMIN_API_KEY` is optional. If set, it protects write operations (POST, PATCH, DELETE) on admin endpoints. GET requests to admin endpoints are always allowed for frontend access. If not set, all operations are allowed.
-
 ## Global Funding Sources
 
 Grant Sentinel aggregates opportunities from 55+ public funding sources worldwide:
@@ -247,3 +174,76 @@ The D1 schema lives in `db/schema.sql` and includes:
 ## Compliance Disclaimer
 
 Grant Sentinel aggregates data from multiple public funding sources (including Grants.gov, SAM.gov, TED.eu, HRSA, and others). This product is not endorsed or certified by any government agency or funding organization.
+
+## Repo Layout
+
+- `app/` Next.js App Router dashboard with pages: Dashboard, Sources, AI Analysis
+- `components/` UI components including Navigation, SourceRowWrapper, and SourceRowActions
+- `lib/` API client and shared types
+- `workers/` Cloudflare Worker ingestion pipeline
+- `db/schema.sql` D1 schema for metadata, documents, and analyses
+- `db/seed_sources.sql` global funding source registry seed data
+- `wrangler.toml` Cloudflare bindings and cron schedule
+
+## Requirements
+
+- Node.js 20+
+- Cloudflare Wrangler CLI
+- Cloudflare account with D1, R2, Queues, Vectorize
+
+## Local Development
+
+```bash
+npm install
+npm run worker:dev  # Start the backend Worker
+npm run dev         # Start the Next.js frontend
+```
+
+Set `GRANT_SENTINEL_API_URL` (or `NEXT_PUBLIC_GRANT_SENTINEL_API_URL`) to your Worker endpoint so the dashboard can read data:
+
+```bash
+export GRANT_SENTINEL_API_URL="http://localhost:8787"
+```
+
+### Frontend Deployment
+
+The frontend is deployed to Cloudflare Workers using `@opennextjs/cloudflare`:
+
+```bash
+npm run build:cloudflare
+npm run frontend:deploy
+```
+
+## Cloudflare Setup
+
+1. Create a D1 database and update `wrangler.toml` with its ID.
+2. Create R2 buckets:
+   - `grant-sentinel-pdfs` (for PDF documents)
+   - `grant-sentinel-frontend-assets` (for frontend static assets)
+   - `grant-sentinel-next-cache` (for Next.js incremental cache)
+3. Create a Queue named `grant-sentinel-pdf`.
+4. Create a Vectorize index named `grant-sentinel-index`.
+5. Apply schema:
+
+```bash
+wrangler d1 execute grant_sentinel --file db/schema.sql
+```
+
+6. Seed the global funding source registry (optional but recommended):
+
+```bash
+wrangler d1 execute grant_sentinel --file db/seed_sources.sql
+```
+
+## Secrets
+
+```bash
+wrangler secret put GRANTS_GOV_API_KEY
+wrangler secret put SAM_GOV_API_KEY
+wrangler secret put HRSA_API_KEY
+wrangler secret put COMPANY_PROFILE
+wrangler secret put NOTIFICATION_WEBHOOK_URL
+wrangler secret put ADMIN_API_KEY  # Optional: Required for write operations (POST, PATCH, DELETE) on admin endpoints
+```
+
+**Note**: The `ADMIN_API_KEY` is optional. If set, it protects write operations (POST, PATCH, DELETE) on admin endpoints. GET requests to admin endpoints are always allowed for frontend access. If not set, all operations are allowed.
