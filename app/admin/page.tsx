@@ -1,7 +1,14 @@
 import { revalidatePath } from "next/cache";
 import TabNav from "../../components/admin/TabNav";
 import OpportunityList from "../../components/OpportunityList";
-import { fetchAdminSummary, fetchExclusionRules, createExclusionRule, disableExclusionRule, triggerIngestionSync } from "../../lib/admin";
+import {
+  fetchAdminSummary,
+  fetchExclusionRules,
+  createExclusionRule,
+  disableExclusionRule,
+  triggerIngestionSync,
+  triggerTedSync
+} from "../../lib/admin";
 import { fetchOpportunities } from "../../lib/opportunities";
 
 type PageProps = {
@@ -62,6 +69,13 @@ function OverviewTab({
     revalidatePath("/admin");
   }
 
+  async function handleRunTedSync(formData: FormData) {
+    "use server";
+    const zipUrl = String(formData.get("zipUrl") ?? "").trim();
+    await triggerTedSync(zipUrl || undefined);
+    revalidatePath("/admin");
+  }
+
   return (
     <section className="grid">
       <div className="grid grid-3">
@@ -90,6 +104,15 @@ function OverviewTab({
           <form action={handleRunSync}>
             <button className="button" type="submit">
               Run ingestion pipeline
+            </button>
+          </form>
+        </div>
+        <div className="card" style={{ display: "grid", gap: "8px" }}>
+          <p className="muted">TED bulk import</p>
+          <form action={handleRunTedSync} className="grid">
+            <input className="input" name="zipUrl" placeholder="Optional TED zip URL override" />
+            <button className="button button--secondary" type="submit">
+              Run TED import
             </button>
           </form>
         </div>

@@ -8,6 +8,8 @@ COMPANY_PROFILE = "Private-sector digital health company focused on AI-driven cl
 EXCLUDED_BUREAUS = "Forestry, Agriculture"
 PRIORITY_AGENCIES = "HHS, NIH, DoD, Defense Health Agency"
 POLITE_DELAY_MS = "400"
+TED_BULK_DOWNLOAD_URL = "https://ted.europa.eu/en/simap/xml-bulk-download"
+TED_MAX_NOTICES = "500"
 
 [[d1_databases]]
 binding = "DB"

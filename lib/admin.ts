@@ -52,3 +52,13 @@ export async function triggerIngestionSync(): Promise<boolean> {
   });
   return response.ok;
 }
+
+export async function triggerTedSync(zipUrl?: string): Promise<boolean> {
+  if (!API_BASE_URL) return false;
+  const response = await fetch(new URL("/api/admin/run-ted-sync", API_BASE_URL), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zipUrl })
+  });
+  return response.ok;
+}

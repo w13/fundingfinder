@@ -23,6 +23,7 @@ export default function SearchForm({ query, source, minScore }: SearchFormProps)
           <option value="grants_gov">Grants.gov</option>
           <option value="sam_gov">SAM.gov</option>
           <option value="hrsa">HRSA</option>
+          <option value="ted_eu">TED.eu</option>
         </select>
       </label>
       <label style={{ display: "grid", gap: "6px" }}>

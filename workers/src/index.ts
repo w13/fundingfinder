@@ -2,6 +2,7 @@ import type { Env, PdfJob } from "./types";
 import { syncGrantsGov } from "./connectors/grantsGov";
 import { syncSamGov } from "./connectors/samGov";
 import { syncHrsa } from "./connectors/hrsa";
+import { syncTedEu } from "./connectors/tedEu";
 import {
   upsertOpportunity,
   listOpportunities,
@@ -49,7 +50,7 @@ export default {
       const limit = toNumber(url.searchParams.get("limit")) ?? 50;
       const items = await listOpportunities(env.DB, {
         query,
-        source: source as "grants_gov" | "sam_gov" | "hrsa" | undefined,
+        source: source as "grants_gov" | "sam_gov" | "hrsa" | "ted_eu" | undefined,
         minScore: minScore ?? undefined,
         limit
       });
@@ -100,6 +101,14 @@ export default {
       return jsonResponse({ status: "started" }, 202);
     }
 
+    if (url.pathname === "/api/admin/run-ted-sync" && request.method === "POST") {
+      const body = await request.json().catch(() => null);
+      const zipUrl = typeof body?.zipUrl === "string" ? body.zipUrl : undefined;
+      const maxNotices = typeof body?.maxNotices === "number" ? body.maxNotices : undefined;
+      ctx.waitUntil(runTedSync(env, ctx, { zipUrl, maxNotices }));
+      return jsonResponse({ status: "started" }, 202);
+    }
+
     if (url.pathname.startsWith("/api/opportunities/") && request.method === "GET") {
       const id = url.pathname.split("/").pop();
       if (!id) return jsonResponse({ error: "Missing id" }, 400);
@@ -113,7 +122,7 @@ export default {
 };
 
 async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
-  const sources = [syncGrantsGov, syncSamGov, syncHrsa];
+  const sources = [syncGrantsGov, syncSamGov, syncHrsa, syncTedEu];
   const pdfJobs: PdfJob[] = [];
   const updated = new Map<string, boolean>();
   const rules = await listExclusionRules(env.DB, true);
@@ -144,6 +153,18 @@ async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
       url: null
     }))
   );
+}
+
+async function runTedSync(
+  env: Env,
+  ctx: ExecutionContext,
+  options: { zipUrl?: string; maxNotices?: number }
+): Promise<void> {
+  const rules = await listExclusionRules(env.DB, true);
+  const { records } = await syncTedEu(env, ctx, rules, options);
+  for (const record of records) {
+    await upsertOpportunity(env.DB, record);
+  }
 }
 
 async function processPdfJob(env: Env, ctx: ExecutionContext, job: PdfJob): Promise<void> {

@@ -21,6 +21,13 @@ export async function hashPayload(payload: unknown): Promise<string> {
   return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export async function hashText(text: string): Promise<string> {
+  const encoded = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  const bytes = Array.from(new Uint8Array(digest));
+  return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export function safeJsonParse<T>(value: string | null): T | null {
   if (!value) return null;
   try {

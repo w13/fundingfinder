@@ -1,4 +1,4 @@
-export type SourceSystem = "grants_gov" | "sam_gov" | "hrsa";
+export type SourceSystem = "grants_gov" | "sam_gov" | "hrsa" | "ted_eu";
 
 export interface OpportunityRecord {
   id: string;
@@ -77,6 +77,8 @@ export interface Env {
   GRANTS_GOV_API_KEY?: string;
   SAM_GOV_API_KEY?: string;
   HRSA_API_KEY?: string;
+  TED_BULK_DOWNLOAD_URL?: string;
+  TED_MAX_NOTICES?: string;
   COMPANY_PROFILE?: string;
   EXCLUDED_BUREAUS?: string;
   PRIORITY_AGENCIES?: string;

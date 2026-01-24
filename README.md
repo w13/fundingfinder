@@ -7,7 +7,7 @@ opportunities, and assigns feasibility scores using Workers AI.
 ## Architecture Overview
 
 **Stage 1: Metadata Ingestion**
-- Cron Worker polls Grants.gov, SAM.gov, and HRSA for the last 7 days.
+- Cron Worker polls Grants.gov, SAM.gov, HRSA, and TED.eu for the last 7 days.
 - Eligibility filter requires for-profit or small business indicators and excludes restricted entities.
 - Keyword scoring prioritizes AI and digital health terms.
 
@@ -73,11 +73,23 @@ wrangler secret put COMPANY_PROFILE
 wrangler secret put NOTIFICATION_WEBHOOK_URL
 ```
 
+## TED Bulk Download
+
+The TED bulk download integration fetches the latest daily XML zip from the bulk download page, unzips notices, and
+filters them with the same exclusion/keyword logic. You can override the download URL or cap the import size using
+environment variables:
+
+```bash
+export TED_BULK_DOWNLOAD_URL="https://ted.europa.eu/en/simap/xml-bulk-download"
+export TED_MAX_NOTICES="500"
+```
+
 ## API Endpoints (Worker)
 
 - `GET /api/opportunities?query=&source=&minScore=&limit=`
 - `GET /api/opportunities/:id`
 - `GET /health`
+- `POST /api/admin/run-ted-sync`
 
 ## Compliance Disclaimer
 
