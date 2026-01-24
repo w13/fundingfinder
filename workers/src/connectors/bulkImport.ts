@@ -3,30 +3,33 @@ import type { Env, ExclusionRule, FundingSource, OpportunityRecord, SourceIntegr
 import { agencyPriorityBoost, buildAgencyFilters, isAgencyExcluded, scoreKeywords } from "../filters";
 import { hashText, normalizeText } from "../utils";
 import { politeFetch } from "./http";
+import type { BulkParsingProfile } from "../sources/types";
 
-const ENTRY_TAGS = ["NOTICE", "TENDER", "CONTRACT_NOTICE", "CONTRACT", "PROCUREMENT", "FORM_SECTION", "OPPORTUNITY", "RECORD"];
-const ID_TAGS = ["NOTICE_ID", "NOTICE_NUMBER", "OCID", "ID", "REFERENCE", "REF_NO", "REFNO", "REFERENCE_NUMBER"];
-const TITLE_TAGS = ["TITLE", "TITLE_EN", "TITLE_TE", "CONTRACT_TITLE", "TENDER_TITLE", "SUBJECT", "OBJECT"];
-const SUMMARY_TAGS = ["SHORT_DESCR", "DESCRIPTION", "CONTRACT_OBJECT", "OBJECT_DESCR", "SUMMARY"];
-const AGENCY_TAGS = ["CONTRACTING_BODY", "OFFICIALNAME", "ORGANISATION_NAME", "AGENCY", "BUYER_NAME", "PROCURING_ENTITY"];
-const STATUS_TAGS = ["NOTICE_TYPE", "STATUS", "TYPE_OF_CONTRACT", "PROCEDURE", "CATEGORY"];
-const URL_TAGS = ["URI_DOC", "URL", "URL_DOCUMENT", "NOTICE_URL", "DETAIL_URL"];
-const POSTED_TAGS = ["DATE_DISPATCH_NOTICE", "DATE_DISPATCH", "PUBLISHED_DATE", "DATE_PUB", "DATE_PUBLICATION"];
-const DUE_TAGS = ["DATE_RECEIPT_TENDERS", "DATE_RECEIPT_REQUESTS", "DEADLINE", "DATE_TENDER", "DATE_CLOSING"];
-
-const JSON_KEYS = {
-  id: ["id", "noticeId", "tenderId", "ocid", "reference", "refNo", "referenceNumber", "documentNumber"],
-  title: ["title", "noticeTitle", "tenderTitle", "contractTitle", "name", "subject", "object"],
-  summary: ["summary", "description", "shortDescription", "shortDescr", "objectDescription"],
-  agency: ["agency", "buyer", "procuringEntity", "contractingAuthority", "organization", "issuer"],
-  status: ["status", "noticeType", "procedure", "stage"],
-  url: ["url", "link", "noticeUrl", "detailUrl", "portalUrl"],
-  postedDate: ["postedDate", "publishDate", "publicationDate", "datePublished", "dateReleased"],
-  dueDate: ["dueDate", "deadline", "closingDate", "dateClosing", "dateTenders"]
-};
-
-const JSON_PATHS = {
-  agency: ["buyer.name", "procuringEntity.name", "organization.name", "agency.name", "issuer.name"]
+const DEFAULT_PARSING: BulkParsingProfile = {
+  entryTags: ["NOTICE", "TENDER", "CONTRACT_NOTICE", "CONTRACT", "PROCUREMENT", "FORM_SECTION", "OPPORTUNITY", "RECORD"],
+  xmlTags: {
+    id: ["NOTICE_ID", "NOTICE_NUMBER", "OCID", "ID", "REFERENCE", "REF_NO", "REFNO", "REFERENCE_NUMBER"],
+    title: ["TITLE", "TITLE_EN", "TITLE_TE", "CONTRACT_TITLE", "TENDER_TITLE", "SUBJECT", "OBJECT"],
+    summary: ["SHORT_DESCR", "DESCRIPTION", "CONTRACT_OBJECT", "OBJECT_DESCR", "SUMMARY"],
+    agency: ["CONTRACTING_BODY", "OFFICIALNAME", "ORGANISATION_NAME", "AGENCY", "BUYER_NAME", "PROCURING_ENTITY"],
+    status: ["NOTICE_TYPE", "STATUS", "TYPE_OF_CONTRACT", "PROCEDURE", "CATEGORY"],
+    url: ["URI_DOC", "URL", "URL_DOCUMENT", "NOTICE_URL", "DETAIL_URL"],
+    postedDate: ["DATE_DISPATCH_NOTICE", "DATE_DISPATCH", "PUBLISHED_DATE", "DATE_PUB", "DATE_PUBLICATION"],
+    dueDate: ["DATE_RECEIPT_TENDERS", "DATE_RECEIPT_REQUESTS", "DEADLINE", "DATE_TENDER", "DATE_CLOSING"]
+  },
+  jsonKeys: {
+    id: ["id", "noticeId", "tenderId", "ocid", "reference", "refNo", "referenceNumber", "documentNumber"],
+    title: ["title", "noticeTitle", "tenderTitle", "contractTitle", "name", "subject", "object"],
+    summary: ["summary", "description", "shortDescription", "shortDescr", "objectDescription"],
+    agency: ["agency", "buyer", "procuringEntity", "contractingAuthority", "organization", "issuer"],
+    status: ["status", "noticeType", "procedure", "stage"],
+    url: ["url", "link", "noticeUrl", "detailUrl", "portalUrl"],
+    postedDate: ["postedDate", "publishDate", "publicationDate", "datePublished", "dateReleased"],
+    dueDate: ["dueDate", "deadline", "closingDate", "dateClosing", "dateTenders"]
+  },
+  jsonPaths: {
+    agency: ["buyer.name", "procuringEntity.name", "organization.name", "agency.name", "issuer.name"]
+  }
 };
 
 export interface BulkImportOptions {
@@ -39,7 +42,8 @@ export async function syncBulkSource(
   ctx: ExecutionContext,
   source: FundingSource,
   rules: ExclusionRule[],
-  options: BulkImportOptions
+  options: BulkImportOptions,
+  parsingProfile?: BulkParsingProfile
 ): Promise<OpportunityRecord[]> {
   const maxNotices = options.maxNotices ?? Number(env.BULK_MAX_NOTICES ?? env.TED_MAX_NOTICES ?? 500);
   const url = options.url ?? source.autoUrl;
@@ -63,10 +67,12 @@ export async function syncBulkSource(
     records.push(record);
   };
 
+  const profile = mergeProfile(parsingProfile);
+
   const handleXml = async (xml: string, filename: string) => {
-    for (const entry of extractXmlEntries(xml)) {
+    for (const entry of extractXmlEntries(xml, profile)) {
       if (records.length >= maxNotices) break;
-      const record = await buildRecordFromXml(entry, source, filters, filename);
+      const record = await buildRecordFromXml(entry, source, filters, filename, profile);
       pushRecord(record);
     }
   };
@@ -75,7 +81,7 @@ export async function syncBulkSource(
     const entries = extractJsonEntries(json);
     for (const entry of entries) {
       if (records.length >= maxNotices) break;
-      const record = await buildRecordFromJson(entry, source, filters, filename);
+      const record = await buildRecordFromJson(entry, source, filters, filename, profile);
       pushRecord(record);
     }
   };
@@ -120,8 +126,8 @@ async function parsePayload(
   await handleXml(trimmed, filename);
 }
 
-function extractXmlEntries(xml: string): string[] {
-  for (const tag of ENTRY_TAGS) {
+function extractXmlEntries(xml: string, profile: BulkParsingProfile): string[] {
+  for (const tag of profile.entryTags ?? DEFAULT_PARSING.entryTags ?? []) {
     const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi");
     const matches = xml.match(regex);
     if (matches && matches.length > 0) {
@@ -135,16 +141,20 @@ async function buildRecordFromXml(
   xml: string,
   source: FundingSource,
   filters: { priorityAgencies: string[]; excludedBureaus: string[] },
-  filename: string
+  filename: string,
+  profile: BulkParsingProfile
 ): Promise<OpportunityRecord | null> {
-  const opportunityId = extractTag(xml, ID_TAGS) ?? `SRC-${(await hashText(xml)).slice(0, 12)}`;
-  const title = extractTag(xml, TITLE_TAGS) ?? "Untitled Tender";
-  const summary = extractTag(xml, SUMMARY_TAGS);
-  const agency = extractTag(xml, AGENCY_TAGS);
-  const status = extractTag(xml, STATUS_TAGS);
-  const url = extractTag(xml, URL_TAGS);
-  const postedDate = extractTag(xml, POSTED_TAGS);
-  const dueDate = extractTag(xml, DUE_TAGS);
+  const tags = profile.xmlTags ?? DEFAULT_PARSING.xmlTags;
+  const opportunityId = extractTag(xml, tags.id) ?? `SRC-${(await hashText(xml)).slice(0, 12)}`;
+  const title = extractTag(xml, tags.title) ?? "Untitled Tender";
+  const summary = extractTag(xml, tags.summary);
+  const agency = extractTag(xml, tags.agency);
+  const status = extractTag(xml, tags.status);
+  const url = extractTag(xml, tags.url);
+  const postedDate = extractTag(xml, tags.postedDate);
+  const dueDate = extractTag(xml, tags.dueDate);
+  const bureau = tags.bureau ? extractTag(xml, tags.bureau) : null;
+  const eligibility = tags.eligibility ? extractTag(xml, tags.eligibility) : null;
 
   const combined = normalizeText(`${title} ${summary ?? ""} ${agency ?? ""}`);
   const keywordScore = scoreKeywords(combined) + agencyPriorityBoost(agency, filters);
@@ -155,10 +165,10 @@ async function buildRecordFromXml(
     source: source.id,
     title: normalizeText(title),
     agency: agency ? normalizeText(agency) : null,
-    bureau: null,
+    bureau: bureau ? normalizeText(bureau) : null,
     status: status ? normalizeText(status) : null,
     summary: summary ? normalizeText(summary) : null,
-    eligibility: "Open to registered suppliers.",
+    eligibility: eligibility ? normalizeText(eligibility) : "Open to registered suppliers.",
     forProfitEligible: true,
     smallBusinessEligible: combined.toLowerCase().includes("small business"),
     keywordScore,
@@ -175,17 +185,21 @@ async function buildRecordFromJson(
   entry: Record<string, unknown>,
   source: FundingSource,
   filters: { priorityAgencies: string[]; excludedBureaus: string[] },
-  filename: string
+  filename: string,
+  profile: BulkParsingProfile
 ): Promise<OpportunityRecord | null> {
   const jsonString = JSON.stringify(entry);
-  const opportunityId = pickString(entry, JSON_KEYS.id) ?? `SRC-${(await hashText(jsonString)).slice(0, 12)}`;
-  const title = pickString(entry, JSON_KEYS.title) ?? "Untitled Tender";
-  const summary = pickString(entry, JSON_KEYS.summary);
-  const agency = pickString(entry, JSON_KEYS.agency) ?? pickPath(entry, JSON_PATHS.agency);
-  const status = pickString(entry, JSON_KEYS.status);
-  const url = pickString(entry, JSON_KEYS.url);
-  const postedDate = pickString(entry, JSON_KEYS.postedDate);
-  const dueDate = pickString(entry, JSON_KEYS.dueDate);
+  const keys = profile.jsonKeys ?? DEFAULT_PARSING.jsonKeys;
+  const opportunityId = pickString(entry, keys.id) ?? `SRC-${(await hashText(jsonString)).slice(0, 12)}`;
+  const title = pickString(entry, keys.title) ?? "Untitled Tender";
+  const summary = pickString(entry, keys.summary);
+  const agency = pickString(entry, keys.agency) ?? pickPath(entry, profile.jsonPaths?.agency ?? DEFAULT_PARSING.jsonPaths?.agency ?? []);
+  const status = pickString(entry, keys.status);
+  const url = pickString(entry, keys.url);
+  const postedDate = pickString(entry, keys.postedDate);
+  const dueDate = pickString(entry, keys.dueDate);
+  const bureau = keys.bureau ? pickString(entry, keys.bureau) : null;
+  const eligibility = keys.eligibility ? pickString(entry, keys.eligibility) : null;
 
   const combined = normalizeText(`${title} ${summary ?? ""} ${agency ?? ""}`);
   const keywordScore = scoreKeywords(combined) + agencyPriorityBoost(agency, filters);
@@ -196,10 +210,10 @@ async function buildRecordFromJson(
     source: source.id,
     title: normalizeText(title),
     agency: agency ? normalizeText(agency) : null,
-    bureau: null,
+    bureau: bureau ? normalizeText(bureau) : null,
     status: status ? normalizeText(status) : null,
     summary: summary ? normalizeText(summary) : null,
-    eligibility: "Open to registered suppliers.",
+    eligibility: eligibility ? normalizeText(eligibility) : "Open to registered suppliers.",
     forProfitEligible: true,
     smallBusinessEligible: combined.toLowerCase().includes("small business"),
     keywordScore,
@@ -280,4 +294,16 @@ function getPath(entry: Record<string, unknown>, path: string[]): unknown {
 
 export function isBulkType(integrationType: SourceIntegrationType): boolean {
   return ["bulk_xml_zip", "bulk_xml", "bulk_json", "manual_url"].includes(integrationType);
+}
+
+function mergeProfile(profile?: BulkParsingProfile): BulkParsingProfile {
+  if (!profile) return DEFAULT_PARSING;
+  return {
+    entryTags: profile.entryTags ?? DEFAULT_PARSING.entryTags,
+    xmlTags: { ...DEFAULT_PARSING.xmlTags, ...profile.xmlTags },
+    jsonKeys: { ...DEFAULT_PARSING.jsonKeys, ...profile.jsonKeys },
+    jsonPaths: {
+      agency: profile.jsonPaths?.agency ?? DEFAULT_PARSING.jsonPaths?.agency
+    }
+  };
 }

@@ -4,6 +4,7 @@ import { syncSamGov } from "./samGov";
 import { syncHrsa } from "./hrsa";
 import { syncTedEu } from "./tedEu";
 import { isBulkType, syncBulkSource } from "./bulkImport";
+import { getSourceDefinition } from "../sources/registry";
 
 export interface SourceSyncOptions {
   url?: string;
@@ -42,7 +43,8 @@ export async function syncFundingSource(
     if (!options.url && !source.autoUrl && source.integrationType === "manual_url") {
       throw new Error("Manual source requires a download URL.");
     }
-    return syncBulkSource(env, ctx, source, rules, options);
+    const parsingProfile = getSourceDefinition(source.id)?.parsing;
+    return syncBulkSource(env, ctx, source, rules, options, parsingProfile);
   }
 
   return [];

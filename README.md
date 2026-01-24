@@ -101,6 +101,12 @@ Sources tab to:
 - Configure an auto URL + integration type for cron-style ingest.
 - Monitor last sync status and ingested counts.
 
+### Adding or Updating Sources
+
+Source-specific parsing logic lives in `workers/src/sources/`. When a source format changes (or you add a new source),
+update or add a source definition file there instead of touching the database layer. The normalization pipeline
+(`workers/src/normalize/opportunity.ts`) handles consistent scoring and storage.
+
 ## D1 Schema
 
 The D1 schema lives in `db/schema.sql` and includes:

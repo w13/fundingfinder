@@ -1,8 +1,10 @@
 import { gunzipSync, strFromU8, unzipSync } from "fflate";
 import type { Env, ExclusionRule, OpportunityRecord, PdfJob, SourceSystem } from "../types";
-import { buildAgencyFilters, agencyPriorityBoost, isAgencyExcluded, scoreKeywords } from "../filters";
+import { buildAgencyFilters } from "../filters";
 import { hashText, normalizeText } from "../utils";
 import { politeFetch } from "./http";
+import { buildOpportunityRecord } from "../normalize/opportunity";
+import { mapTedNotice } from "../sources/tedEu";
 
 const SOURCE: SourceSystem = "ted_eu";
 const DEFAULT_INDEX_URL = "https://ted.europa.eu/en/simap/xml-bulk-download";
@@ -52,9 +54,11 @@ export async function syncTedEu(
       if (processed >= maxNotices) break;
       const parsed = await parseTedNotice(notice, filename);
       if (!parsed) continue;
-      if (isAgencyExcluded(parsed.agency, filters)) continue;
-      if (parsed.keywordScore <= 0) continue;
-      records.push(parsed);
+      const normalized = mapTedNotice(parsed);
+      if (!normalized) continue;
+      const result = await buildOpportunityRecord(normalized, filters);
+      if (!result) continue;
+      records.push(result.record);
       processed += 1;
     }
   }
@@ -102,7 +106,21 @@ function pickLatestByDate(urls: string[]): string | null {
   return latest?.url ?? null;
 }
 
-async function parseTedNotice(xml: string, filename: string): Promise<OpportunityRecord | null> {
+async function parseTedNotice(
+  xml: string,
+  filename: string
+): Promise<{
+  opportunityId: string;
+  title: string;
+  summary: string | null;
+  agency: string | null;
+  bureau: string | null;
+  status: string | null;
+  postedDate: string | null;
+  dueDate: string | null;
+  url: string | null;
+  rawPayload: unknown;
+} | null> {
   const opportunityId =
     extractTag(xml, ["NOTICE_NUMBER_OJ", "TD_DOCUMENT_NUMBER", "NOTICE_NUMBER", "NO_DOC_OJ", "DOCUMENT_NUMBER"]) ??
     `TED-${(await hashText(xml)).slice(0, 12)}`;
@@ -118,27 +136,16 @@ async function parseTedNotice(xml: string, filename: string): Promise<Opportunit
   const status = extractTag(xml, ["NOTICE_TYPE", "TYPE_OF_CONTRACT"]);
   const url = extractTag(xml, ["URI_DOC", "URL_DOCUMENT", "URL"]);
 
-  const combined = normalizeText(`${title} ${summary ?? ""} ${agency ?? ""}`);
-  const keywordScore = scoreKeywords(combined) + agencyPriorityBoost(agency, filters);
-
   return {
-    id: crypto.randomUUID(),
     opportunityId,
-    source: SOURCE,
     title: normalizeText(title),
     agency: agency ? normalizeText(agency) : null,
     bureau: bureau ? normalizeText(bureau) : null,
     status: status ? normalizeText(status) : null,
     summary: summary ? normalizeText(summary) : null,
-    eligibility: "Economic operators, suppliers, and contractors.",
-    forProfitEligible: true,
-    smallBusinessEligible: combined.toLowerCase().includes("small business"),
-    keywordScore,
     postedDate: postedDate ? normalizeText(postedDate) : null,
     dueDate: dueDate ? normalizeText(dueDate) : null,
     url: url ? normalizeText(url) : null,
-    version: 1,
-    versionHash: await hashText(xml),
     rawPayload: {
       file: filename,
       opportunityId,
