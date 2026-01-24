@@ -86,16 +86,32 @@ export async function syncBulkSource(
     }
   };
 
-  if (extension === "zip" || contentType.includes("zip")) {
-    const entries = unzipSync(buffer);
-    for (const [filename, data] of Object.entries(entries)) {
-      if (records.length >= maxNotices) break;
-      await parsePayload(strFromU8(data), filename, handleXml, handleJson);
+  try {
+    if (extension === "zip" || contentType.includes("zip")) {
+      const entries = unzipSync(buffer);
+      for (const [filename, data] of Object.entries(entries)) {
+        if (records.length >= maxNotices) break;
+        if (!data || data.length === 0) continue;
+        try {
+          await parsePayload(strFromU8(data), filename, handleXml, handleJson);
+        } catch (error) {
+          console.warn(`Failed to parse ${filename}:`, error);
+          continue;
+        }
+      }
+    } else if (extension === "gz" || contentType.includes("gzip")) {
+      const decompressed = gunzipSync(buffer);
+      if (decompressed && decompressed.length > 0) {
+        await parsePayload(strFromU8(decompressed), url, handleXml, handleJson);
+      }
+    } else {
+      if (buffer.length > 0) {
+        await parsePayload(strFromU8(buffer), url, handleXml, handleJson);
+      }
     }
-  } else if (extension === "gz" || contentType.includes("gzip")) {
-    await parsePayload(strFromU8(gunzipSync(buffer)), url, handleXml, handleJson);
-  } else {
-    await parsePayload(strFromU8(buffer), url, handleXml, handleJson);
+  } catch (error) {
+    console.error("Bulk import error:", error);
+    throw new Error(`Failed to process bulk file: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 
   return records;
@@ -112,18 +128,38 @@ async function parsePayload(
   handleXml: (xml: string, filename: string) => Promise<void>,
   handleJson: (json: unknown, filename: string) => Promise<void>
 ): Promise<void> {
+  if (!payload || payload.trim().length === 0) {
+    console.warn(`Empty payload for ${filename}`);
+    return;
+  }
+
   const trimmed = payload.trim();
+  
+  // Try JSON first
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
       const json = JSON.parse(trimmed);
-      await handleJson(json, filename);
-      return;
+      if (json !== null && json !== undefined) {
+        await handleJson(json, filename);
+        return;
+      }
     } catch (error) {
-      console.warn("bulk json parse failed", error);
+      console.warn(`JSON parse failed for ${filename}, trying XML:`, error);
     }
   }
 
-  await handleXml(trimmed, filename);
+  // Try XML
+  if (trimmed.startsWith("<") || trimmed.includes("<?xml")) {
+    try {
+      await handleXml(trimmed, filename);
+      return;
+    } catch (error) {
+      console.warn(`XML parse failed for ${filename}:`, error);
+      throw error;
+    }
+  }
+
+  console.warn(`Unknown format for ${filename}, skipping`);
 }
 
 function extractXmlEntries(xml: string, profile: BulkParsingProfile): string[] {
@@ -228,9 +264,20 @@ async function buildRecordFromJson(
 
 function extractTag(xml: string, tags: string[]): string | null {
   for (const tag of tags) {
+    // Try with CDATA first
+    const cdataMatch = xml.match(new RegExp(`<${tag}[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*<\\/${tag}>`, "i"));
+    if (cdataMatch?.[1]) {
+      return normalizeText(cdataMatch[1].trim());
+    }
+    // Try regular tag
     const match = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
     if (match?.[1]) {
       return stripXml(match[1]);
+    }
+    // Try self-closing tag with attribute
+    const attrMatch = xml.match(new RegExp(`<${tag}[^>]+(?:title|name|value)=["']([^"']+)["']`, "i"));
+    if (attrMatch?.[1]) {
+      return normalizeText(attrMatch[1]);
     }
   }
   return null;
@@ -243,16 +290,21 @@ function stripXml(value: string): string {
 function extractJsonEntries(data: unknown): Array<Record<string, unknown>> {
   if (!data) return [];
   if (Array.isArray(data)) {
-    return data.filter((item) => typeof item === "object" && item !== null) as Array<Record<string, unknown>>;
+    return data.filter((item) => typeof item === "object" && item !== null && !Array.isArray(item)) as Array<Record<string, unknown>>;
   }
-  if (typeof data === "object") {
+  if (typeof data === "object" && data !== null) {
     const record = data as Record<string, unknown>;
-    for (const key of ["items", "results", "data", "records", "tenders", "notices", "opportunities"]) {
+    // Try common array keys
+    for (const key of ["items", "results", "data", "records", "tenders", "notices", "opportunities", "releases", "awards", "contracts"]) {
       if (Array.isArray(record[key])) {
-        return record[key] as Array<Record<string, unknown>>;
+        const arr = record[key] as unknown[];
+        return arr.filter((item) => typeof item === "object" && item !== null && !Array.isArray(item)) as Array<Record<string, unknown>>;
       }
     }
-    return [record];
+    // If it's a single object, wrap it
+    if (!Array.isArray(record)) {
+      return [record];
+    }
   }
   return [];
 }

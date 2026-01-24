@@ -1,0 +1,20 @@
+{
+  "node": {
+    "40ae5a1aba4cd59064f371f11958c3bdab34bb555c": {
+      "workers": {
+        "app/page": {
+          "moduleId": "[project]/Repositories/FundingFinder/fundingfinder/.next-internal/server/app/page/actions.js { ACTIONS_MODULE0 => \"[project]/Repositories/FundingFinder/fundingfinder/components/OpportunityList.tsx [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "Repositories/FundingFinder/fundingfinder/components/OpportunityList.tsx"
+        }
+      },
+      "layer": {
+        "app/page": "rsc"
+      },
+      "exportedName": "$$RSC_SERVER_ACTION_0",
+      "filename": "Repositories/FundingFinder/fundingfinder/components/OpportunityList.tsx"
+    }
+  },
+  "edge": {}
+}

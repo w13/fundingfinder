@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import Navigation from "../components/Navigation";
+import Breadcrumbs from "../components/Breadcrumbs";
 
 export const metadata: Metadata = {
   title: "Grant Sentinel",
-  description: "AI-native grant aggregator for private-sector opportunities."
+  description: "Grant aggregator for private-sector opportunities."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,13 +16,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
           <header className="header">
             <div className="container header__content">
-              <div className="header__brand">
+              <Link href="/" className="header__brand" style={{ textDecoration: "none", color: "inherit" }}>
                 <h1>Grant Sentinel</h1>
-                <p>Enterprise grant intelligence for AI and digital health.</p>
-              </div>
+              </Link>
               <Navigation />
             </div>
           </header>
+          <div className="breadcrumbs-container">
+            <div className="container">
+              <Breadcrumbs />
+            </div>
+          </div>
           <main style={{ flex: 1, padding: "32px 0" }}>
             <div className="container">{children}</div>
           </main>

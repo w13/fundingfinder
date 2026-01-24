@@ -193,6 +193,10 @@ async function listOpportunitiesStandard(db: D1Database, query: OpportunityQuery
   const limit = query.limit ?? 50;
 
   const statement = `
+    WITH LatestAnalyses AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY opportunity_id, source ORDER BY created_at DESC) as rn
+      FROM analyses
+    )
     SELECT
       o.id,
       o.opportunity_id as opportunityId,
@@ -208,13 +212,10 @@ async function listOpportunitiesStandard(db: D1Database, query: OpportunityQuery
       a.suitability_score as suitabilityScore,
       a.profitability_score as profitabilityScore
     FROM opportunities o
-    LEFT JOIN analyses a
+    LEFT JOIN LatestAnalyses a
       ON a.opportunity_id = o.opportunity_id
       AND a.source = o.source
-      AND a.created_at = (
-        SELECT MAX(created_at) FROM analyses
-        WHERE opportunity_id = o.opportunity_id AND source = o.source
-      )
+      AND a.rn = 1
     ${whereClause}
     ORDER BY (a.feasibility_score IS NULL) ASC, a.feasibility_score DESC, o.posted_date DESC
     LIMIT ?
@@ -247,6 +248,10 @@ async function listOpportunitiesFts(db: D1Database, query: OpportunityQuery): Pr
   const limit = query.limit ?? 50;
 
   const statement = `
+    WITH LatestAnalyses AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY opportunity_id, source ORDER BY created_at DESC) as rn
+      FROM analyses
+    )
     SELECT
       o.id,
       o.opportunity_id as opportunityId,
@@ -265,13 +270,10 @@ async function listOpportunitiesFts(db: D1Database, query: OpportunityQuery): Pr
     FROM opportunities_fts f
     JOIN opportunities o
       ON o.opportunity_id = f.opportunity_id AND o.source = f.source
-    LEFT JOIN analyses a
+    LEFT JOIN LatestAnalyses a
       ON a.opportunity_id = o.opportunity_id
       AND a.source = o.source
-      AND a.created_at = (
-        SELECT MAX(created_at) FROM analyses
-        WHERE opportunity_id = o.opportunity_id AND source = o.source
-      )
+      AND a.rn = 1
     ${whereClause}
     ORDER BY rank ASC, o.posted_date DESC
     LIMIT ?
@@ -299,7 +301,11 @@ function buildFtsQuery(query: string, mode: "smart" | "exact" | "any"): string |
 export async function getOpportunityById(db: D1Database, id: string): Promise<OpportunityDetail | null> {
   const row = await db
     .prepare(
-      `SELECT
+      `WITH LatestAnalyses AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY opportunity_id, source ORDER BY created_at DESC) as rn
+        FROM analyses
+      )
+      SELECT
         o.id,
         o.opportunity_id as opportunityId,
         o.source,
@@ -320,13 +326,10 @@ export async function getOpportunityById(db: D1Database, id: string): Promise<Op
         a.summary as analysisSummary,
         a.constraints as constraints
       FROM opportunities o
-      LEFT JOIN analyses a
+      LEFT JOIN LatestAnalyses a
         ON a.opportunity_id = o.opportunity_id
         AND a.source = o.source
-        AND a.created_at = (
-          SELECT MAX(created_at) FROM analyses
-          WHERE opportunity_id = o.opportunity_id AND source = o.source
-        )
+        AND a.rn = 1
       WHERE o.id = ?`
     )
     .bind(id)
@@ -445,7 +448,11 @@ export async function insertAnalysis(db: D1Database, opportunityId: string, sour
 export async function listShortlist(db: D1Database): Promise<ShortlistItem[]> {
   const results = await db
     .prepare(
-      `SELECT
+      `WITH LatestAnalyses AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY opportunity_id, source ORDER BY created_at DESC) as rn
+        FROM analyses
+      )
+      SELECT
         s.id as shortlistId,
         o.id as opportunityRecordId,
         o.opportunity_id as opportunityId,
@@ -460,13 +467,10 @@ export async function listShortlist(db: D1Database): Promise<ShortlistItem[]> {
         a.profitability_score as profitabilityScore
       FROM shortlist s
       JOIN opportunities o ON o.opportunity_id = s.opportunity_id AND o.source = s.source
-      LEFT JOIN analyses a
+      LEFT JOIN LatestAnalyses a
         ON a.opportunity_id = o.opportunity_id
         AND a.source = o.source
-        AND a.created_at = (
-          SELECT MAX(created_at) FROM analyses
-          WHERE opportunity_id = o.opportunity_id AND source = o.source
-        )
+        AND a.rn = 1
       ORDER BY s.created_at DESC`
     )
     .all<ShortlistItem>();
@@ -516,6 +520,10 @@ export async function listShortlistForAnalysis(
   const whereClause = hasIds ? `WHERE s.id IN (${placeholders})` : "";
 
   const statement = `
+    WITH LatestDocuments AS (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY opportunity_id, source ORDER BY created_at DESC) as rn
+      FROM documents
+    )
     SELECT
       s.id as shortlistId,
       o.opportunity_id as opportunityId,
@@ -527,13 +535,10 @@ export async function listShortlistForAnalysis(
       d.section_map as sectionMap
     FROM shortlist s
     JOIN opportunities o ON o.opportunity_id = s.opportunity_id AND o.source = s.source
-    LEFT JOIN documents d
+    LEFT JOIN LatestDocuments d
       ON d.opportunity_id = o.opportunity_id
       AND d.source = o.source
-      AND d.created_at = (
-        SELECT MAX(created_at) FROM documents
-        WHERE opportunity_id = o.opportunity_id AND source = o.source
-      )
+      AND d.rn = 1
     ${whereClause}
     ORDER BY s.created_at DESC
   `;

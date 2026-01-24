@@ -1,0 +1,11 @@
+[00:00:00.664] Server  LOG     
+[00:00:00.664] Server  LOG       We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+[00:00:00.665] Server  LOG       The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+[00:00:00.665] Server  LOG       	- include was updated to add 'out/types/**/*.ts'
+[00:00:00.665] Server  LOG       	- include was updated to add 'out/dev/types/**/*.ts'
+[00:00:00.665] Server  LOG     
+[00:00:00.755] Server  LOG     ✓ Ready in 393ms
+[00:00:02.295] Server  ERROR   ⨯ Error: Route / with `dynamic = "error"` couldn't be rendered statically because it used `searchParams.then`. See more info here: https://nextjs.org/docs/app/building-your-application/rendering/static-and-dynamic#dynamic-rendering
+[00:00:02.458] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:02.571] Browser ERROR   uncaughtError: Error: Route / with `dynamic = "error"` couldn't be rendered statically because it used `searchParams.then`. See more info here: https://nextjs.org/docs/app/building-your-application/rendering/static-and-dynamic#dynamic-rendering

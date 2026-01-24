@@ -7,36 +7,51 @@ export async function fetchAdminSummary(): Promise<{ summary: AdminSummary | nul
   if (!API_BASE_URL) {
     return { summary: null, warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
-  const response = await fetch(new URL("/api/admin/summary", API_BASE_URL), { cache: "no-store" });
-  if (!response.ok) {
-    return { summary: null, warning: `API error ${response.status}` };
+  try {
+    const response = await fetch(new URL("/api/admin/summary", API_BASE_URL), { cache: "no-store" });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      return { summary: null, warning: `API error ${response.status}: ${errorText || "Unknown error"}` };
+    }
+    const payload = (await response.json()) as { summary: AdminSummary };
+    return { summary: payload.summary };
+  } catch (error) {
+    return { summary: null, warning: `Failed to fetch summary: ${error instanceof Error ? error.message : "Unknown error"}` };
   }
-  const payload = (await response.json()) as { summary: AdminSummary };
-  return { summary: payload.summary };
 }
 
 export async function fetchExclusionRules(): Promise<{ rules: ExclusionRule[]; warning?: string }> {
   if (!API_BASE_URL) {
     return { rules: [], warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
-  const response = await fetch(new URL("/api/admin/exclusions", API_BASE_URL), { cache: "no-store" });
-  if (!response.ok) {
-    return { rules: [], warning: `API error ${response.status}` };
+  try {
+    const response = await fetch(new URL("/api/admin/exclusions", API_BASE_URL), { cache: "no-store" });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      return { rules: [], warning: `API error ${response.status}: ${errorText || "Unknown error"}` };
+    }
+    const payload = (await response.json()) as { rules: ExclusionRule[] };
+    return { rules: payload.rules ?? [] };
+  } catch (error) {
+    return { rules: [], warning: `Failed to fetch rules: ${error instanceof Error ? error.message : "Unknown error"}` };
   }
-  const payload = (await response.json()) as { rules: ExclusionRule[] };
-  return { rules: payload.rules ?? [] };
 }
 
 export async function fetchFundingSources(): Promise<{ sources: FundingSource[]; warning?: string }> {
   if (!API_BASE_URL) {
     return { sources: [], warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
-  const response = await fetch(new URL("/api/admin/sources", API_BASE_URL), { cache: "no-store" });
-  if (!response.ok) {
-    return { sources: [], warning: `API error ${response.status}` };
+  try {
+    const response = await fetch(new URL("/api/admin/sources", API_BASE_URL), { cache: "no-store" });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      return { sources: [], warning: `API error ${response.status}: ${errorText || "Unknown error"}` };
+    }
+    const payload = (await response.json()) as { sources: FundingSource[] };
+    return { sources: payload.sources ?? [] };
+  } catch (error) {
+    return { sources: [], warning: `Failed to fetch sources: ${error instanceof Error ? error.message : "Unknown error"}` };
   }
-  const payload = (await response.json()) as { sources: FundingSource[] };
-  return { sources: payload.sources ?? [] };
 }
 
 export async function syncFundingSource(

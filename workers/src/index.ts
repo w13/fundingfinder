@@ -1,4 +1,5 @@
-import type { Env, PdfJob } from "./types";
+import { z } from "zod";
+import type { Env, PdfJob, SectionSlices } from "./types";
 import { isIntegrationType } from "./types";
 import { syncGrantsGov } from "./connectors/grantsGov";
 import { syncSamGov } from "./connectors/samGov";
@@ -32,7 +33,7 @@ import { sendDailyBrief } from "./notifications";
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runSync(env, ctx));
+    ctx.waitUntil(runSync(env, ctx, true));
   },
 
   async queue(batch: MessageBatch<PdfJob>, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -142,8 +143,52 @@ async function handleSources(request: Request, env: Env): Promise<Response | nul
   });
 }
 
+// Zod Schemas
+const updateSourceSchema = z.object({
+  integrationType: z.string().optional(),
+  autoUrl: z.string().nullable().optional(),
+  active: z.boolean().optional()
+});
+
+const syncSourceSchema = z.object({
+  url: z.string().optional(),
+  maxNotices: z.number().optional()
+});
+
+const addExclusionSchema = z.object({
+  ruleType: z.enum(["excluded_bureau", "priority_agency"]),
+  value: z.string().min(1)
+});
+
+const addShortlistSchema = z.object({
+  opportunityId: z.string().min(1),
+  source: z.string().min(1)
+});
+
+const removeShortlistSchema = z.object({
+  shortlistId: z.string().optional(),
+  opportunityId: z.string().optional(),
+  source: z.string().optional()
+});
+
+const analyzeShortlistSchema = z.object({
+  shortlistIds: z.array(z.string()).optional()
+});
+
+function authorize(request: Request, env: Env): boolean {
+  if (!env.ADMIN_API_KEY) return true;
+  const auth = request.headers.get("Authorization");
+  return auth === `Bearer ${env.ADMIN_API_KEY}`;
+}
+
 async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response | null> {
   if (!url.pathname.startsWith("/api/admin")) return null;
+
+  // Only require authorization for write operations (POST, PATCH, DELETE)
+  // GET requests are allowed without auth for frontend access
+  if (request.method !== "GET" && !authorize(request, env)) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
 
   if (url.pathname === "/api/admin/summary" && request.method === "GET") {
     const summary = await getAdminSummary(env.DB);
@@ -158,22 +203,20 @@ async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionConte
   if (url.pathname.startsWith("/api/admin/sources/") && request.method === "PATCH") {
     const id = url.pathname.split("/").pop();
     if (!id) return jsonResponse({ error: "Missing source id" }, 400);
-    const body = await request.json().catch(() => null);
-    if (!body || typeof body !== "object") {
-      return jsonResponse({ error: "Invalid payload" }, 400);
+    
+    const bodyResult = updateSourceSchema.safeParse(await request.json().catch(() => ({})));
+    if (!bodyResult.success) {
+      return jsonResponse({ error: bodyResult.error.format() }, 400);
     }
-    const { integrationType, autoUrl, active } = body as {
-      integrationType?: string;
-      autoUrl?: string | null;
-      active?: boolean;
-    };
+    const { integrationType, autoUrl, active } = bodyResult.data;
+
     if (integrationType && !isIntegrationType(integrationType)) {
       return jsonResponse({ error: "Unsupported integrationType" }, 400);
     }
     const updated = await updateFundingSource(env.DB, id, {
-      integrationType: integrationType ?? undefined,
-      autoUrl: typeof autoUrl === "string" ? autoUrl.trim() || null : autoUrl,
-      active: typeof active === "boolean" ? active : undefined
+      integrationType: integrationType as any,
+      autoUrl,
+      active
     });
     return jsonResponse({ updated });
   }
@@ -181,10 +224,13 @@ async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionConte
   if (url.pathname.startsWith("/api/admin/sources/") && url.pathname.endsWith("/sync") && request.method === "POST") {
     const id = url.pathname.split("/").slice(-2)[0];
     if (!id) return jsonResponse({ error: "Missing source id" }, 400);
-    const body = await request.json().catch(() => null);
-    const urlOverride = typeof body?.url === "string" ? body.url : undefined;
-    const maxNotices = typeof body?.maxNotices === "number" ? body.maxNotices : undefined;
-    ctx.waitUntil(runSourceSync(env, ctx, id, { url: urlOverride, maxNotices }));
+
+    const bodyResult = syncSourceSchema.safeParse(await request.json().catch(() => ({})));
+    if (!bodyResult.success) {
+      return jsonResponse({ error: bodyResult.error.format() }, 400);
+    }
+    
+    ctx.waitUntil(runSourceSync(env, ctx, id, bodyResult.data));
     return jsonResponse({ status: "started" }, 202);
   }
 
@@ -195,23 +241,12 @@ async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionConte
   }
 
   if (url.pathname === "/api/admin/exclusions" && request.method === "POST") {
-    const body = await request.json().catch(() => null);
-    if (!body || typeof body !== "object") {
-      return jsonResponse({ error: "Invalid payload" }, 400);
+    const bodyResult = addExclusionSchema.safeParse(await request.json().catch(() => ({})));
+    if (!bodyResult.success) {
+      return jsonResponse({ error: bodyResult.error.format() }, 400);
     }
-    const ruleType = (body as { ruleType?: string }).ruleType;
-    const value = (body as { value?: string }).value;
-    if (!ruleType || !value) {
-      return jsonResponse({ error: "Missing ruleType or value" }, 400);
-    }
-    const cleanedValue = String(value).trim();
-    if (!cleanedValue) {
-      return jsonResponse({ error: "Empty value" }, 400);
-    }
-    if (ruleType !== "excluded_bureau" && ruleType !== "priority_agency") {
-      return jsonResponse({ error: "Unsupported ruleType" }, 400);
-    }
-    const rule = await insertExclusionRule(env.DB, ruleType, cleanedValue);
+    
+    const rule = await insertExclusionRule(env.DB, bodyResult.data.ruleType, bodyResult.data.value);
     return jsonResponse({ rule }, 201);
   }
 
@@ -223,7 +258,7 @@ async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionConte
   }
 
   if (url.pathname === "/api/admin/run-sync" && request.method === "POST") {
-    ctx.waitUntil(runSync(env, ctx));
+    ctx.waitUntil(runSync(env, ctx, false));
     return jsonResponse({ status: "started" }, 202);
   }
 
@@ -238,32 +273,37 @@ async function handleShortlistRoutes(
 ): Promise<Response | null> {
   if (!url.pathname.startsWith("/api/shortlist")) return null;
 
+  if (request.method !== "GET" && !authorize(request, env)) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+
   if (url.pathname === "/api/shortlist" && request.method === "GET") {
     const items = await listShortlist(env.DB);
     return jsonResponse({ items });
   }
 
   if (url.pathname === "/api/shortlist" && request.method === "POST") {
-    const body = await request.json().catch(() => null);
-    const opportunityId = typeof body?.opportunityId === "string" ? body.opportunityId.trim() : "";
-    const source = typeof body?.source === "string" ? body.source.trim() : "";
-    if (!opportunityId || !source) {
-      return jsonResponse({ error: "Missing opportunityId or source" }, 400);
+    const bodyResult = addShortlistSchema.safeParse(await request.json().catch(() => ({})));
+    if (!bodyResult.success) {
+      return jsonResponse({ error: bodyResult.error.format() }, 400);
     }
-    const result = await addShortlist(env.DB, opportunityId, source);
+    
+    const result = await addShortlist(env.DB, bodyResult.data.opportunityId, bodyResult.data.source);
     return jsonResponse({ id: result.id, created: result.created }, 201);
   }
 
   if (url.pathname === "/api/shortlist/remove" && request.method === "POST") {
-    const body = await request.json().catch(() => null);
-    const shortlistId = typeof body?.shortlistId === "string" ? body.shortlistId.trim() : "";
-    const opportunityId = typeof body?.opportunityId === "string" ? body.opportunityId.trim() : "";
-    const source = typeof body?.source === "string" ? body.source.trim() : "";
+    const bodyResult = removeShortlistSchema.safeParse(await request.json().catch(() => ({})));
+    if (!bodyResult.success) {
+       return jsonResponse({ error: bodyResult.error.format() }, 400);
+    }
+    const { shortlistId, opportunityId, source } = bodyResult.data;
+
     let removed = false;
     if (shortlistId) {
       removed = await removeShortlist(env.DB, shortlistId);
     } else if (opportunityId && source) {
-      removed = await removeShortlistByOpportunity(env.DB, opportunityId, source);
+      removed = await removeShortlistByOpportunity(env.DB, opportunityId, source as any);
     } else {
       return jsonResponse({ error: "Missing shortlistId or opportunityId/source" }, 400);
     }
@@ -271,18 +311,19 @@ async function handleShortlistRoutes(
   }
 
   if (url.pathname === "/api/shortlist/analyze" && request.method === "POST") {
-    const body = await request.json().catch(() => null);
-    const shortlistIds = Array.isArray(body?.shortlistIds)
-      ? body.shortlistIds.filter((id: unknown) => typeof id === "string")
-      : undefined;
-    ctx.waitUntil(runShortlistAnalysis(env, ctx, shortlistIds));
+    const bodyResult = analyzeShortlistSchema.safeParse(await request.json().catch(() => ({})));
+    if (!bodyResult.success) {
+       return jsonResponse({ error: bodyResult.error.format() }, 400);
+    }
+
+    ctx.waitUntil(runShortlistAnalysis(env, ctx, bodyResult.data.shortlistIds));
     return jsonResponse({ status: "started" }, 202);
   }
 
   return null;
 }
 
-async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
+async function runSync(env: Env, ctx: ExecutionContext, isScheduled = false): Promise<void> {
   const sources = [syncGrantsGov, syncSamGov, syncHrsa];
   const pdfJobs: PdfJob[] = [];
   const updated = new Map<string, boolean>();
@@ -305,17 +346,19 @@ async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
     await env.PDF_QUEUE.send(job);
   }
 
-  const briefItems = await listOpportunities(env.DB, { minScore: 80, limit: 5 });
-  await sendDailyBrief(
-    env,
-    briefItems.map((item) => ({
-      title: item.title,
-      opportunityId: item.opportunityId,
-      source: item.source,
-      feasibilityScore: item.feasibilityScore ?? 0,
-      url: null
-    }))
-  );
+  if (isScheduled) {
+    const briefItems = await listOpportunities(env.DB, { minScore: 80, limit: 5 });
+    await sendDailyBrief(
+      env,
+      briefItems.map((item) => ({
+        title: item.title,
+        opportunityId: item.opportunityId,
+        source: item.source,
+        feasibilityScore: item.feasibilityScore ?? 0,
+        url: null
+      }))
+    );
+  }
 }
 
 async function syncCatalogSources(env: Env, ctx: ExecutionContext, rules: Awaited<ReturnType<typeof listExclusionRules>>): Promise<void> {
@@ -406,6 +449,9 @@ async function runShortlistAnalysis(
 async function processPdfJob(env: Env, ctx: ExecutionContext, job: PdfJob): Promise<void> {
   const pdfLinks = await resolvePdfLinks(env, job.detailUrl, job.documentUrls);
   const limited = pdfLinks.slice(0, 3);
+  
+  let combinedText = "";
+  const collectedSections: SectionSlices[] = [];
 
   for (let index = 0; index < limited.length; index += 1) {
     const pdfUrl = limited[index];
@@ -413,15 +459,28 @@ async function processPdfJob(env: Env, ctx: ExecutionContext, job: PdfJob): Prom
     if (!result) continue;
 
     await insertDocument(env.DB, job.opportunityId, job.source, pdfUrl, result.r2Key, result.textExcerpt, result.sections);
-
-    if (index === 0) {
-      const analysis = await analyzeFeasibility(env, job.title, result.sections, result.fullText);
-      await insertAnalysis(env.DB, job.opportunityId, job.source, analysis);
-      await indexOpportunity(env, job.opportunityId, job.source, result.textExcerpt, {
-        opportunityId: job.opportunityId,
-        source: job.source
-      });
+    
+    if (result.fullText) {
+      combinedText += `--- Document ${index + 1} ---\n${result.fullText}\n\n`;
     }
+    collectedSections.push(result.sections);
+  }
+
+  // Merge sections loosely by concatenating
+  const mergedSections: SectionSlices = {
+    programDescription: collectedSections.map(s => s.programDescription).filter(Boolean).join("\n\n"),
+    requirements: collectedSections.map(s => s.requirements).filter(Boolean).join("\n\n"),
+    evaluationCriteria: collectedSections.map(s => s.evaluationCriteria).filter(Boolean).join("\n\n")
+  };
+
+  // If we have any text, perform analysis
+  if (combinedText.trim().length > 0) {
+    const analysis = await analyzeFeasibility(env, job.title, mergedSections, combinedText.slice(0, 30000)); // Limit context window
+    await insertAnalysis(env.DB, job.opportunityId, job.source, analysis);
+    await indexOpportunity(env, job.opportunityId, job.source, combinedText.slice(0, 2000), {
+      opportunityId: job.opportunityId,
+      source: job.source
+    });
   }
 
   ctx.waitUntil(Promise.resolve());

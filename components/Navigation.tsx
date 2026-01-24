@@ -19,18 +19,15 @@ function NavigationContent() {
       }
       return true;
     }
-    // For paths without query, check exact match and ensure no conflicting query params
+    // For paths without query, check exact match
     if (pathname !== href) return false;
-    // If we're on /admin but the link is /admin, only active if no tab is specified
-    if (href === "/admin" && searchParams.has("tab")) return false;
     return true;
   };
 
   const navItems = [
     { href: "/", label: "Dashboard" },
-    { href: "/shortlist", label: "Shortlist" },
     { href: "/sources", label: "Sources" },
-    { href: "/admin", label: "Manage" }
+    { href: "/shortlist", label: "AI Analysis" }
   ];
 
   return (
@@ -56,9 +53,8 @@ export default function Navigation() {
     <Suspense fallback={
       <nav className="header__nav">
         <div className="header__nav-link">Dashboard</div>
-        <div className="header__nav-link">Shortlist</div>
         <div className="header__nav-link">Sources</div>
-        <div className="header__nav-link">Manage</div>
+        <div className="header__nav-link">AI Analysis</div>
       </nav>
     }>
       <NavigationContent />

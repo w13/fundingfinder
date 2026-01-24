@@ -24,11 +24,7 @@ export default async function ShortlistPage() {
   return (
     <div className="grid">
       <section className="hero">
-        <p className="pill">Shortlist</p>
-        <h2 className="hero__title">AI readiness for shortlisted grants</h2>
-        <p className="hero__subtitle">
-          Review your shortlisted opportunities and trigger a feasibility + suitability analysis with Workers AI.
-        </p>
+        <h2 className="hero__title">Shortlist</h2>
         {warning ? (
           <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e" }}>
             {warning}

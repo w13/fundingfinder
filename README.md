@@ -23,8 +23,8 @@ opportunities, and assigns feasibility scores using Workers AI.
 
 ## Repo Layout
 
-- `app/` Next.js App Router dashboard with pages: Dashboard, Shortlist, Sources, Manage
-- `components/` UI components including Navigation and admin tabs
+- `app/` Next.js App Router dashboard with pages: Dashboard, Sources, AI Analysis
+- `components/` UI components including Navigation, SourceRowWrapper, and SourceRowActions
 - `lib/` API client and shared types
 - `workers/` Cloudflare Worker ingestion pipeline
 - `db/schema.sql` D1 schema for metadata, documents, and analyses
@@ -89,44 +89,109 @@ wrangler secret put SAM_GOV_API_KEY
 wrangler secret put HRSA_API_KEY
 wrangler secret put COMPANY_PROFILE
 wrangler secret put NOTIFICATION_WEBHOOK_URL
+wrangler secret put ADMIN_API_KEY  # Optional: Required for write operations (POST, PATCH, DELETE) on admin endpoints
 ```
 
-## TED Bulk Download
-
-The TED bulk download integration fetches the latest daily XML zip from the bulk download page, unzips notices, and
-filters them with the same exclusion/keyword logic. You can override the download URL or cap the import size using
-environment variables:
-
-```bash
-export TED_BULK_DOWNLOAD_URL="https://ted.europa.eu/en/simap/xml-bulk-download"
-export TED_MAX_NOTICES="500"
-export BULK_MAX_NOTICES="500"
-```
+**Note**: The `ADMIN_API_KEY` is optional. If set, it protects write operations (POST, PATCH, DELETE) on admin endpoints. GET requests to admin endpoints are always allowed for frontend access. If not set, all operations are allowed.
 
 ## Global Funding Sources
+
+Grant Sentinel aggregates opportunities from 55+ public funding sources worldwide:
+
+- **Grants.gov** - U.S. federal grant opportunities across all agencies
+- **SAM.gov** - U.S. federal contract opportunities and awards
+- **HRSA** - Health Resources and Services Administration grants
+- **TED Europe** - European Union public procurement notices
+- **UNGM** - United Nations procurement opportunities
+- **World Bank** - World Bank procurement and consulting opportunities
+- **UNDP** - UNDP procurement notices and tenders
+- **ADB** - Asian Development Bank procurement opportunities
+- **IADB** - Inter-American Development Bank project procurement
+- **Caribbean Development Bank** - Caribbean Development Bank procurement
+- **EDC Canada** - Export Development Canada financing opportunities
+- **Contracts Finder UK** - UK government contracts and tenders
+- **Public Contracts Scotland** - Scottish public sector contracts
+- **Sell2Wales** - Welsh public sector procurement opportunities
+- **AusTender** - Australian government tenders and contracts
+- **GETS** - New Zealand government electronic tendering
+- **GeBIZ** - Singapore government procurement portal
+- **ChileCompra** - Chilean public procurement system
+- **Compranet** - Mexican federal procurement platform
+- **PanamaCompra** - Panamanian public procurement system
+- **COMPR.AR** - Argentine public procurement portal
+- **Compras Estatales** - Uruguayan state procurement system
+- **Contrataciones Públicas** - Paraguayan public procurement
+- **HonduCompras** - Honduran public procurement platform
+- **BAOSEM** - Algerian public procurement portal
+- **Ministry of National Defence (Algeria)** - Algerian Ministry of Defense procurement
+- **Marches Publics (Morocco)** - Moroccan public procurement system
+- **Observatoire National des Marches Publics** - Tunisian public procurement observatory
+- **GHANEPS** - Ghana electronic procurement system
+- **eTenders (Nigeria)** - Nigerian electronic tendering platform
+- **e-GP** - Bangladesh electronic government procurement
+- **PhilGEPS** - Philippines Government Electronic Procurement System
+- **ePerolehan** - Malaysian electronic procurement system
+- **JETRO** - Japan External Trade Organization opportunities
+- **DAPA-FPBIS** - South Korea Defense Acquisition Program Administration
+- **Public Procurement Service (South Korea)** - South Korea Public Procurement Service
+- **SEAP** - Romanian electronic public procurement
+- **Inspektorat Uzbrojenia** - Polish Armament Inspectorate procurement
+- **Doffin** - Norwegian public procurement database
+- **e-Vergabe** - German electronic procurement platform
+- **Marches Publics (France)** - French public procurement portal
+- **AcquistinretePA** - Italian public administration procurement
+- **Prozorro** - Ukrainian transparent procurement system
+- **Tender Board** - Bahrain tender board
+- **PPRA** - Pakistan Public Procurement Regulatory Authority
+- **National Treasury eTenders** - South African National Treasury eTenders
+- **CanadaBuys** - Canadian federal procurement opportunities
+- **Cal eProcure** - California eProcure state contracts
+- **Florida DMS** - Florida Department of Management Services
+- **New York OGS** - New York Office of General Services
+- **NATO ACT** - NATO Allied Command Transformation procurement
+- **NATO HQ Bonfire Portal** - NATO Headquarters Bonfire procurement portal
+- **NATO NCI Agency** - NATO Communications and Information Agency
+- **NATO Support and Procurement Agency** - NATO Support and Procurement Agency
+
+The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP).
 
 The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP). 
 
 ### Sources Page
 
-The dedicated **Sources** page (`/sources`) provides a comprehensive table view of all funding sources with:
-- **Status indicators**: Color-coded circles showing sync status (syncing, scheduled, synced, failed, inactive, etc.)
+The dedicated **Sources** page (`/sources`) is the central hub for managing all aspects of the system:
+
+**Overview Dashboard**
+- System-wide statistics: Total opportunities, for-profit eligible, analyzed with AI, high feasibility count
+- High-signal opportunities list with feasibility scores
+- Last update timestamp and active source count
+
+**Source Management Table**
+- **Status indicators**: Color-coded circles showing sync status (syncing, scheduled, synced, failed, inactive, never synced)
 - **Real-time status**: Shows whether sources are syncing now, scheduled to sync, or require manual sync
-- **Quick actions**: Sync and Enable/Disable buttons for each source
-- **Detailed metrics**: Last sync time, ingested counts, integration types
+- **Quick actions**: Sync button (with loading animation) and Enable/Disable toggle for each source
+- **Detailed metrics**: Last sync time, ingested counts, integration types, source descriptions
+- **Expandable settings**: Click "Settings" on any source row to:
+  - View detailed source information (Auto URL, homepage, last error, expected volume)
+  - Sync with custom max notices limit
+  - Update integration type, auto URL, and enable/disable cron sync
+  - Run manual import with URL override
 
-### Manage Section
+**Filters Management**
+- Add exclusion rules (exclude bureau/agency or priority agency)
+- View and manage active filters in a table
+- Disable filters as needed
 
-Use the **Manage** section (`/admin`) to:
-- **Analytics**: View system-wide statistics and high-signal opportunities
-- **Sources**: Configure sources with manual imports, auto URLs, and integration types
-- **Filters**: Set exclusion rules and priority agencies
-- **Settings**: Configure environment and API endpoints
+**System Settings**
+- View Worker API endpoint configuration
+- Secrets configuration information
 
-## Shortlist + AI Analysis
+**Bulk Actions**
+- "Sync All Sources" button in the page header to trigger ingestion for all active sources
 
-Use the Shortlist page to collect high-priority opportunities and trigger AI analysis on demand. The analysis pipeline
-stores feasibility, suitability, and profitability scores for quick triage.
+## AI Analysis
+
+Use the **AI Analysis** page (formerly "Shortlist") to collect high-priority opportunities and trigger AI analysis on demand. The analysis pipeline stores feasibility, suitability, and profitability scores for quick triage.
 
 ### Adding or Updating Sources
 
@@ -159,17 +224,25 @@ The D1 schema lives in `db/schema.sql` and includes:
 
 ## API Endpoints (Worker)
 
+**Public Endpoints** (no authentication required):
 - `GET /api/opportunities?query=&source=&minScore=&limit=`
 - `GET /api/opportunities/:id`
 - `GET /api/sources`
 - `GET /health`
 - `GET /api/shortlist`
-- `POST /api/shortlist`
-- `POST /api/shortlist/remove`
-- `POST /api/shortlist/analyze`
-- `GET /api/admin/sources`
-- `PATCH /api/admin/sources/:id`
-- `POST /api/admin/sources/:id/sync`
+- `GET /api/admin/sources` - List all funding sources
+- `GET /api/admin/summary` - Get system statistics
+- `GET /api/admin/exclusions` - List exclusion rules
+
+**Protected Endpoints** (require `Authorization: Bearer <ADMIN_API_KEY>` header if `ADMIN_API_KEY` is set):
+- `POST /api/shortlist` - Add opportunity to shortlist
+- `POST /api/shortlist/remove` - Remove from shortlist
+- `POST /api/shortlist/analyze` - Trigger AI analysis
+- `PATCH /api/admin/sources/:id` - Update source settings
+- `POST /api/admin/sources/:id/sync` - Sync a specific source
+- `POST /api/admin/exclusions` - Add exclusion rule
+- `DELETE /api/admin/exclusions/:id` - Disable exclusion rule
+- `POST /api/admin/run-sync` - Trigger full ingestion sync
 
 ## Compliance Disclaimer
 

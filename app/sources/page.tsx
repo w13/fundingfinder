@@ -1,4 +1,8 @@
-import { fetchFundingSources, syncFundingSource, updateFundingSource } from "../../lib/admin";
+import { fetchFundingSources, syncFundingSource, updateFundingSource, triggerIngestionSync, fetchAdminSummary, fetchExclusionRules, createExclusionRule, disableExclusionRule } from "../../lib/admin";
+import SourceRowWrapper from "../../components/SourceRowWrapper";
+import OpportunityList from "../../components/OpportunityList";
+import { INTEGRATION_TYPE_OPTIONS } from "../../lib/constants";
+import { fetchOpportunities } from "../../lib/opportunities";
 import { revalidatePath } from "next/cache";
 
 type PageProps = {
@@ -75,7 +79,41 @@ function getStatusLabel(status: SyncStatus): string {
 
 export default async function SourcesPage({ searchParams }: PageProps) {
   const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
-  const sourcesResult = await fetchFundingSources();
+  
+  // Fetch data with error handling
+  let sourcesResult: Awaited<ReturnType<typeof fetchFundingSources>>;
+  let summaryResult: Awaited<ReturnType<typeof fetchAdminSummary>>;
+  let exclusionsResult: Awaited<ReturnType<typeof fetchExclusionRules>>;
+  let highSignal: Awaited<ReturnType<typeof fetchOpportunities>>;
+
+  try {
+    [sourcesResult, summaryResult, exclusionsResult, highSignal] = await Promise.all([
+      fetchFundingSources().catch((err) => {
+        console.error("Error fetching sources:", err);
+        return { sources: [], warning: `Failed to load sources: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchFundingSources>>;
+      }),
+      fetchAdminSummary().catch((err) => {
+        console.error("Error fetching summary:", err);
+        return { summary: null, warning: `Failed to load summary: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchAdminSummary>>;
+      }),
+      fetchExclusionRules().catch((err) => {
+        console.error("Error fetching exclusions:", err);
+        return { rules: [], warning: `Failed to load filters: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchExclusionRules>>;
+      }),
+      fetchOpportunities({ minScore: "75", limit: 5 }).catch((err) => {
+        console.error("Error fetching opportunities:", err);
+        return { items: [], warning: `Failed to load opportunities: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchOpportunities>>;
+      })
+    ]);
+  } catch (error) {
+    console.error("Critical error loading sources page:", error);
+    // Fallback to empty data
+    sourcesResult = { sources: [], warning: "Failed to load page data" };
+    summaryResult = { summary: null, warning: "Failed to load page data" };
+    exclusionsResult = { rules: [], warning: "Failed to load page data" };
+    highSignal = { items: [], warning: "Failed to load page data" };
+  }
+
   const sources = sourcesResult.sources;
 
   async function handleSync(formData: FormData) {
@@ -95,27 +133,210 @@ export default async function SourcesPage({ searchParams }: PageProps) {
     revalidatePath("/sources");
   }
 
-  const sortedSources = [...sources].sort((a, b) => {
-    // Sort by active first, then by name
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  async function handleSyncAll() {
+    "use server";
+    await triggerIngestionSync();
+    revalidatePath("/sources");
+  }
+
+  async function handleSourceSync(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const url = String(formData.get("url") ?? "").trim();
+    const maxNotices = Number(formData.get("maxNotices") ?? "");
+    if (!sourceId) return;
+    await syncFundingSource(sourceId, {
+      url: url || undefined,
+      maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
+    });
+    revalidatePath("/sources");
+  }
+
+  async function handleSourceUpdate(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const autoUrl = String(formData.get("autoUrl") ?? "").trim();
+    const integrationType = String(formData.get("integrationType") ?? "").trim();
+    const active = formData.get("active") === "on";
+    if (!sourceId) return;
+    await updateFundingSource(sourceId, {
+      integrationType: integrationType as "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "manual_url",
+      autoUrl: autoUrl ? autoUrl : null,
+      active
+    });
+    revalidatePath("/sources");
+  }
+
+  async function handleRowSync(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const maxNotices = Number(formData.get("maxNotices") ?? "");
+    if (!sourceId) return;
+    await syncFundingSource(sourceId, {
+      maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
+    });
+    revalidatePath("/sources");
+  }
+
+  async function handleAddRule(formData: FormData) {
+    "use server";
+    const ruleType = String(formData.get("ruleType") ?? "");
+    const value = String(formData.get("value") ?? "").trim();
+    if (!ruleType || !value) return;
+    await createExclusionRule(ruleType as "excluded_bureau" | "priority_agency", value);
+    revalidatePath("/sources");
+  }
+
+  async function handleDisableRule(formData: FormData) {
+    "use server";
+    const id = String(formData.get("id") ?? "");
+    if (!id) return;
+    await disableExclusionRule(id);
+    revalidatePath("/sources");
+  }
+
+  // Sort alphabetically only, don't reorder on toggle
+  const sortedSources = [...sources].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="grid">
       <section className="hero">
-        <p className="pill">Data Sources</p>
-        <h2 className="hero__title">Source Status & Management</h2>
-        <p className="hero__subtitle">
-          Monitor sync status, configure automation, and manually trigger imports for all funding sources.
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+          <h2 className="hero__title" style={{ margin: 0 }}>Sources</h2>
+          <form action={handleSyncAll} style={{ margin: 0 }}>
+            <button className="button" type="submit" style={{ padding: "8px 16px", fontSize: "14px" }}>
+              Sync All Sources
+            </button>
+          </form>
+        </div>
         {sourcesResult.warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e" }}>
+          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginTop: "12px" }}>
             {sourcesResult.warning}
           </div>
         ) : null}
       </section>
 
+      {/* Overview Stats */}
+      <div className="grid grid-3" style={{ gap: "12px", marginBottom: "24px" }}>
+        <div className="card">
+          <p className="muted">Total opportunities</p>
+          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">For-profit eligible</p>
+          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">Analyzed w/ AI</p>
+          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">High feasibility</p>
+          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">Last update</p>
+          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
+        </div>
+        <div className="card">
+          <p className="muted">Active sources</p>
+          <h3 style={{ margin: "6px 0 0" }}>{sources.filter(s => s.active).length}</h3>
+        </div>
+      </div>
+
+      {/* High-signal opportunities */}
+      <div className="card" style={{ marginBottom: "24px" }}>
+        <h3 style={{ marginTop: 0 }}>High-signal opportunities</h3>
+        <OpportunityList items={highSignal.items} />
+      </div>
+
+      {/* Filters/Exclusions */}
+      <div className="card" style={{ marginBottom: "24px" }}>
+        <h3 style={{ marginTop: 0 }}>Filters</h3>
+        {exclusionsResult.warning ? (
+          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginBottom: "16px" }}>
+            {exclusionsResult.warning}
+          </div>
+        ) : null}
+        <div className="grid grid-2" style={{ gap: "16px", marginBottom: "16px" }}>
+          <div>
+            <h4 style={{ marginTop: 0, marginBottom: "12px", fontSize: "14px" }}>Add Filter</h4>
+            <form className="grid" action={handleAddRule} style={{ gap: "8px" }}>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span className="pill" style={{ fontSize: "11px", padding: "4px 8px" }}>Filter type</span>
+                <select className="select" name="ruleType" defaultValue="excluded_bureau" style={{ padding: "8px 10px", fontSize: "13px" }}>
+                  <option value="excluded_bureau">Exclude bureau/agency</option>
+                  <option value="priority_agency">Priority agency</option>
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span className="pill" style={{ fontSize: "11px", padding: "4px 8px" }}>Value</span>
+                <input className="input" name="value" placeholder="e.g. USDA, Forestry" style={{ padding: "8px 10px", fontSize: "13px" }} />
+              </label>
+              <button className="button" type="submit" style={{ padding: "8px 14px", fontSize: "13px" }}>
+                Add Filter
+              </button>
+            </form>
+          </div>
+          <div>
+            <h4 style={{ marginTop: 0, marginBottom: "12px", fontSize: "14px" }}>Active Filters</h4>
+            {exclusionsResult.rules.length ? (
+              <table className="table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: "8px", fontSize: "12px" }}>Type</th>
+                    <th style={{ padding: "8px", fontSize: "12px" }}>Value</th>
+                    <th style={{ padding: "8px", fontSize: "12px" }}>Created</th>
+                    <th style={{ padding: "8px", fontSize: "12px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exclusionsResult.rules.map((rule) => (
+                    <tr key={rule.id}>
+                      <td style={{ padding: "8px", fontSize: "12px" }}>{rule.ruleType === "excluded_bureau" ? "Exclude bureau" : "Priority agency"}</td>
+                      <td style={{ padding: "8px", fontSize: "12px" }}>{rule.value}</td>
+                      <td style={{ padding: "8px", fontSize: "12px" }}>{rule.createdAt}</td>
+                      <td style={{ padding: "8px", fontSize: "12px" }}>
+                        <form action={handleDisableRule} style={{ margin: 0, display: "inline-block" }}>
+                          <input type="hidden" name="id" value={rule.id} />
+                          <button className="button button--secondary" type="submit" style={{ padding: "4px 8px", fontSize: "11px" }}>
+                            Disable
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="muted" style={{ fontSize: "13px" }}>No filters configured.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Settings */}
+      <div className="card" style={{ marginBottom: "24px" }}>
+        <h3 style={{ marginTop: 0 }}>Settings</h3>
+        <div className="grid grid-2" style={{ gap: "16px" }}>
+          <div>
+            <p className="muted" style={{ fontSize: "12px", marginBottom: "8px" }}>Worker API</p>
+            <p style={{ margin: 0, fontSize: "13px" }}>
+              {typeof process !== 'undefined' && process.env
+                ? (process.env.GRANT_SENTINEL_API_URL ?? process.env.NEXT_PUBLIC_GRANT_SENTINEL_API_URL ?? 'https://grant-sentinel.wakas.workers.dev')
+                : 'https://grant-sentinel.wakas.workers.dev'}
+            </p>
+          </div>
+          <div>
+            <p className="muted" style={{ fontSize: "12px", marginBottom: "8px" }}>Secrets</p>
+            <p style={{ margin: 0, fontSize: "13px" }}>
+              Configure API keys, webhook URLs, and company profile via Wrangler secrets.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sources Table */}
       <div className="card" style={{ padding: "0", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table className="table" style={{ margin: 0 }}>
@@ -153,76 +374,20 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 };
 
                 return (
-                  <tr key={source.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "12px 8px", textAlign: "center" }}>
-                      <div
-                        style={{
-                          width: "12px",
-                          height: "12px",
-                          borderRadius: "50%",
-                          backgroundColor: statusColor,
-                          display: "inline-block",
-                          boxShadow: status === "syncing" ? `0 0 8px ${statusColor}` : "none",
-                          animation: status === "syncing" ? "pulse 2s infinite" : "none"
-                        }}
-                        title={statusLabel}
-                      />
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "2px" }}>
-                        {source.name}
-                      </div>
-                      <div className="muted" style={{ fontSize: "11px" }}>
-                        {source.country ?? "Global"} • {source.id}
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: "13px", fontWeight: 500, color: statusColor }}>
-                        {statusLabel}
-                      </div>
-                      {source.lastError && status === "failed" && (
-                        <div className="muted" style={{ fontSize: "11px", marginTop: "2px" }}>
-                          {source.lastError.length > 50 ? `${source.lastError.substring(0, 50)}...` : source.lastError}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: "13px" }}>
-                      {formatDate(source.lastSync)}
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", fontSize: "13px", fontWeight: 500 }}>
-                      {source.lastIngested.toLocaleString()}
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>
-                        {source.integrationType}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <div style={{ display: "flex", gap: "6px", justifyContent: "center", flexWrap: "wrap" }}>
-                        <form action={handleSync} style={{ margin: 0 }}>
-                          <input type="hidden" name="sourceId" value={source.id} />
-                          <button
-                            className="button"
-                            type="submit"
-                            style={{ padding: "4px 10px", fontSize: "11px", whiteSpace: "nowrap" }}
-                          >
-                            Sync
-                          </button>
-                        </form>
-                        <form action={handleToggle} style={{ margin: 0 }}>
-                          <input type="hidden" name="sourceId" value={source.id} />
-                          <input type="hidden" name="active" value={source.active ? "false" : "true"} />
-                          <button
-                            className="button button--secondary"
-                            type="submit"
-                            style={{ padding: "4px 10px", fontSize: "11px", whiteSpace: "nowrap" }}
-                          >
-                            {source.active ? "Disable" : "Enable"}
-                          </button>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
+                  <SourceRowWrapper
+                    key={source.id}
+                    source={source}
+                    status={status}
+                    statusColor={statusColor}
+                    statusLabel={statusLabel}
+                    formatDate={formatDate}
+                    handleSync={handleSync}
+                    handleToggle={handleToggle}
+                    handleSourceSync={handleSourceSync}
+                    handleSourceUpdate={handleSourceUpdate}
+                    handleRowSync={handleRowSync}
+                    integrationTypeOptions={INTEGRATION_TYPE_OPTIONS}
+                  />
                 );
               })}
             </tbody>

@@ -35,12 +35,7 @@ export default async function Page({ searchParams }: PageProps) {
   return (
     <div className="grid">
       <section className="hero">
-        <p className="pill">AI-native grant aggregation</p>
-        <h2 className="hero__title">Funding Intelligence Dashboard</h2>
-        <p className="hero__subtitle">
-          The Grant Sentinel funnel mirrors public grant metadata, filters for private-sector eligibility, and escalates
-          the top matches into AI-powered feasibility scoring.
-        </p>
+        <h2 className="hero__title">Dashboard</h2>
         {combinedWarning ? (
           <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e" }}>
             {combinedWarning}
@@ -49,7 +44,7 @@ export default async function Page({ searchParams }: PageProps) {
       </section>
 
       <section className="grid grid-3">
-        <Link href="/admin?tab=sources" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+        <Link href="/sources" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
           <div className="card" style={{ cursor: "pointer", transition: "transform 0.2s ease, box-shadow 0.2s ease" }}>
             <h3 style={{ marginTop: 0 }}>Stage 1 · Metadata Mirror</h3>
             <p className="muted">
@@ -60,7 +55,7 @@ export default async function Page({ searchParams }: PageProps) {
             </p>
           </div>
         </Link>
-        <Link href="/admin?tab=overview" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+        <Link href="/sources" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
           <div className="card" style={{ cursor: "pointer", transition: "transform 0.2s ease, box-shadow 0.2s ease" }}>
             <h3 style={{ marginTop: 0 }}>Stage 2 · PDF Harvester</h3>
             <p className="muted">

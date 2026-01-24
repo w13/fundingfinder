@@ -107,9 +107,18 @@ export interface Env {
   AI: Ai;
   VECTORIZE: VectorizeIndex;
   BROWSER?: Fetcher;
+  
+  // Secrets
+  ADMIN_API_KEY?: string;
   GRANTS_GOV_API_KEY?: string;
   SAM_GOV_API_KEY?: string;
   HRSA_API_KEY?: string;
+  
+  // Configuration
+  GRANTS_GOV_API_URL?: string;
+  SAM_GOV_API_URL?: string;
+  HRSA_API_URL?: string;
+  
   TED_BULK_DOWNLOAD_URL?: string;
   TED_MAX_NOTICES?: string;
   BULK_MAX_NOTICES?: string;
