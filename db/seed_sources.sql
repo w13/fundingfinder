@@ -59,6 +59,7 @@ INSERT INTO funding_sources (
   ("prozorro_ua", "Prozorro", "Ukraine", "https://prozorro.gov.ua", "manual_url", NULL, 134483, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("undp", "UNDP Procurement Notices", "United Nations", "https://procurement-notices.undp.org/", "manual_url", NULL, 207, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("ungm", "UN Global Marketplace", "United Nations", "https://www.ungm.org/", "manual_url", NULL, 617, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
+  ("edc_ca", "Export Development Canada", "Canada", "https://www.edc.ca/", "manual_url", NULL, NULL, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("comprasestatales_uy", "Compras Estatales", "Uruguay", "https://comprasestatales.gub.uy/", "manual_url", NULL, 440, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("caleprocure_ca", "Cal eProcure", "USA", "https://caleprocure.ca.gov/pages/index.aspx", "manual_url", NULL, 280, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("dms_fl_us", "Florida DMS", "USA", "https://www.dms.myflorida.com/", "manual_url", NULL, 118, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
