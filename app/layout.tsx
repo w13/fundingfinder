@@ -16,12 +16,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="container header__content">
               <div className="header__brand">
                 <h1>Grant Sentinel</h1>
-                <p>Private-sector grant intelligence for AI and digital health.</p>
+                <p>Enterprise grant intelligence for AI and digital health.</p>
               </div>
               <nav className="header__nav">
                 <Link href="/">Dashboard</Link>
-                <Link href="/admin">Admin CP</Link>
-                <Link href="https://www.grants.gov">Grants.gov</Link>
+                <Link href="/admin">Admin</Link>
+                <Link href="/admin?tab=sources">Sources</Link>
+                <Link href="https://ted.europa.eu/">TED</Link>
+                <Link href="https://sam.gov">SAM.gov</Link>
               </nav>
             </div>
           </header>

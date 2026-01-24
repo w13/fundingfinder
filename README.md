@@ -1,23 +1,23 @@
 # Grant Sentinel
 
-Grant Sentinel is an AI-native grant aggregator and private-sector search engine built for the Cloudflare ecosystem. It
-implements a multi-stage funnel that mirrors public metadata, performs deep PDF processing only for high-signal
+Grant Sentinel is an enterprise-grade funding aggregator and search engine built on the Cloudflare ecosystem. It
+implements a multi-stage funnel that mirrors public metadata, performs deep document processing for high-signal
 opportunities, and assigns feasibility scores using Workers AI.
 
 ## Architecture Overview
 
 **Stage 1: Metadata Ingestion**
-- Cron Worker polls Grants.gov, SAM.gov, HRSA, TED.eu, and registry-backed global sources.
-- Eligibility filter requires for-profit or small business indicators and excludes restricted entities.
-- Keyword scoring prioritizes AI and digital health terms.
+- Cron Workers poll Grants.gov, SAM.gov, HRSA, TED.eu, and registry-backed global sources.
+- Eligibility filters enforce private-sector requirements and exclusions.
+- Keyword scoring prioritizes AI and digital health signals.
 
 **Stage 2: Intelligent Extraction**
-- Browser Rendering (optional) is used to discover hidden PDF links.
+- Browser Rendering (optional) discovers hidden PDF links.
 - PDFs are stored in R2 and converted to text in the Worker.
 - Sections are sliced to focus on program description, requirements, and evaluation criteria.
 
 **Stage 3: Agentic Reasoning**
-- Workers AI analyzes feasibility and profitability.
+- Workers AI generates feasibility + profitability scores.
 - Vector embeddings are stored in Vectorize for semantic search.
 - Daily brief notifications can be delivered via webhook.
 
@@ -28,6 +28,7 @@ opportunities, and assigns feasibility scores using Workers AI.
 - `lib/` API client and shared types
 - `workers/` Cloudflare Worker ingestion pipeline
 - `db/schema.sql` D1 schema for metadata, documents, and analyses
+- `db/seed_sources.sql` global funding source registry seed data
 - `wrangler.toml` Cloudflare bindings and cron schedule
 
 ## Requirements
@@ -99,6 +100,14 @@ Sources tab to:
 - Trigger a manual import by pasting a download URL.
 - Configure an auto URL + integration type for cron-style ingest.
 - Monitor last sync status and ingested counts.
+
+## D1 Schema
+
+The D1 schema lives in `db/schema.sql` and includes:
+
+- `opportunities`, `opportunity_versions`, `documents`, `analyses`
+- `exclusion_rules`
+- `funding_sources`
 
 ## API Endpoints (Worker)
 

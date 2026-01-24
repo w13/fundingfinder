@@ -1,14 +1,15 @@
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
+  --bg: #f4f6f9;
   --card: #ffffff;
-  --text: #0f172a;
-  --muted: #64748b;
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
-  --border: #e2e8f0;
-  --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
-  --radius: 16px;
+  --text: #0b1f3a;
+  --muted: #4a5b78;
+  --primary: #0046ad;
+  --primary-dark: #003a8a;
+  --accent: #0b63c6;
+  --border: #cfd6e4;
+  --shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  --radius: 0px;
 }
 
 * {
@@ -87,12 +88,14 @@ textarea {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
   font-size: 12px;
   font-weight: 600;
-  background: #f1f5f9;
-  color: #475569;
+  background: #eef2f7;
+  color: #394b68;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .badge {
@@ -100,51 +103,51 @@ textarea {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   border: 1px solid transparent;
   font-size: 12px;
   font-weight: 600;
 }
 
 .badge--good {
-  background: #ecfdf3;
-  color: #15803d;
-  border-color: #86efac;
+  background: #e7f3ff;
+  color: #0b3f85;
+  border-color: #99c2f0;
 }
 
 .badge--warn {
-  background: #fff7ed;
-  color: #c2410c;
-  border-color: #fdba74;
+  background: #fff4e5;
+  color: #8a4b00;
+  border-color: #f0c28a;
 }
 
 .badge--low {
-  background: #fef2f2;
-  color: #b91c1c;
-  border-color: #fca5a5;
+  background: #fdecec;
+  color: #8f1a1a;
+  border-color: #f2b3b3;
 }
 
 .badge--muted {
-  background: #f1f5f9;
-  color: #475569;
+  background: #eef2f7;
+  color: #4a5b78;
   border-color: var(--border);
 }
 
 .button {
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
   background: var(--primary);
   color: #ffffff;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 6px 16px rgba(0, 70, 173, 0.2);
 }
 
 .button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+  box-shadow: 0 10px 20px rgba(0, 70, 173, 0.24);
 }
 
 .button--secondary {
@@ -159,7 +162,7 @@ textarea {
 .textarea {
   width: 100%;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
   background: #ffffff;
   color: var(--text);
@@ -180,12 +183,12 @@ textarea {
 
 .tab {
   padding: 8px 16px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
   background: #ffffff;
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: #394b68;
 }
 
 .tab--active {
@@ -233,9 +236,10 @@ textarea {
 }
 
 .header {
-  background: #0f172a;
+  background: #0b1f3a;
   color: #ffffff;
-  padding: 20px 0;
+  padding: 16px 0;
+  border-bottom: 2px solid #0a2a5e;
 }
 
 .header__content {
@@ -265,12 +269,23 @@ textarea {
   display: flex;
   gap: 16px;
   font-size: 14px;
-  color: #e2e8f0;
+  color: #d6deeb;
+}
+
+.header__nav a {
+  padding: 6px 10px;
+  border: 1px solid transparent;
+}
+
+.header__nav a:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .footer {
   padding: 20px 0;
-  background: #e2e8f0;
-  color: #475569;
+  background: #e1e7f0;
+  color: #4a5b78;
   font-size: 12px;
+  border-top: 1px solid var(--border);
 }
