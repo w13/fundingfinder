@@ -60,3 +60,20 @@ CREATE TABLE IF NOT EXISTS exclusion_rules (
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS funding_sources (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  country TEXT,
+  homepage TEXT,
+  integration_type TEXT NOT NULL,
+  auto_url TEXT,
+  expected_results INTEGER,
+  active INTEGER NOT NULL DEFAULT 0,
+  last_sync TEXT,
+  last_status TEXT,
+  last_error TEXT,
+  last_ingested INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

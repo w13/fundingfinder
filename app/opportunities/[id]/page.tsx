@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchOpportunityById } from "../../../lib/opportunities";
 import { ScoreBadge } from "../../../components/ScoreBadge";
+import { formatSourceLabel } from "../../../lib/format";
 
 export default async function OpportunityPage({ params }: { params: { id: string } }) {
   const item = await fetchOpportunityById(params.id);
@@ -23,11 +24,11 @@ export default async function OpportunityPage({ params }: { params: { id: string
       </Link>
       <div className="card">
         <p className="pill" style={{ marginBottom: "8px" }}>
-          {item.source.replace("_", ".")}
+          {formatSourceLabel(item.source)}
         </p>
         <h2 style={{ margin: 0 }}>{item.title}</h2>
         <p className="muted" style={{ margin: "6px 0 0" }}>
-          {item.agency ?? "Unknown agency"} · {item.source.replace("_", ".")}
+          {item.agency ?? "Unknown agency"} · {formatSourceLabel(item.source)}
         </p>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
           <ScoreBadge label="Feasibility" value={item.feasibilityScore} />

@@ -7,7 +7,7 @@ opportunities, and assigns feasibility scores using Workers AI.
 ## Architecture Overview
 
 **Stage 1: Metadata Ingestion**
-- Cron Worker polls Grants.gov, SAM.gov, HRSA, and TED.eu for the last 7 days.
+- Cron Worker polls Grants.gov, SAM.gov, HRSA, TED.eu, and registry-backed global sources.
 - Eligibility filter requires for-profit or small business indicators and excludes restricted entities.
 - Keyword scoring prioritizes AI and digital health terms.
 
@@ -63,6 +63,12 @@ export GRANT_SENTINEL_API_URL="http://localhost:8787"
 wrangler d1 execute grant_sentinel --file db/schema.sql
 ```
 
+6. Seed the global funding source registry (optional but recommended):
+
+```bash
+wrangler d1 execute grant_sentinel --file db/seed_sources.sql
+```
+
 ## Secrets
 
 ```bash
@@ -82,14 +88,27 @@ environment variables:
 ```bash
 export TED_BULK_DOWNLOAD_URL="https://ted.europa.eu/en/simap/xml-bulk-download"
 export TED_MAX_NOTICES="500"
+export BULK_MAX_NOTICES="500"
 ```
+
+## Global Funding Sources
+
+The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP). Use the Admin
+Sources tab to:
+
+- Trigger a manual import by pasting a download URL.
+- Configure an auto URL + integration type for cron-style ingest.
+- Monitor last sync status and ingested counts.
 
 ## API Endpoints (Worker)
 
 - `GET /api/opportunities?query=&source=&minScore=&limit=`
 - `GET /api/opportunities/:id`
+- `GET /api/sources`
 - `GET /health`
-- `POST /api/admin/run-ted-sync`
+- `GET /api/admin/sources`
+- `PATCH /api/admin/sources/:id`
+- `POST /api/admin/sources/:id/sync`
 
 ## Compliance Disclaimer
 

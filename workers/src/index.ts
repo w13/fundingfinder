@@ -1,8 +1,9 @@
 import type { Env, PdfJob } from "./types";
+import { isIntegrationType } from "./types";
 import { syncGrantsGov } from "./connectors/grantsGov";
 import { syncSamGov } from "./connectors/samGov";
 import { syncHrsa } from "./connectors/hrsa";
-import { syncTedEu } from "./connectors/tedEu";
+import { syncFundingSource } from "./connectors/sourceRegistry";
 import {
   upsertOpportunity,
   listOpportunities,
@@ -12,7 +13,11 @@ import {
   listExclusionRules,
   insertExclusionRule,
   disableExclusionRule,
-  getAdminSummary
+  getAdminSummary,
+  listFundingSources,
+  getFundingSource,
+  updateFundingSource,
+  updateFundingSourceSync
 } from "./db";
 import { resolvePdfLinks } from "./processing/browser";
 import { ingestPdf } from "./processing/pdf";
@@ -43,86 +48,151 @@ export default {
       return jsonResponse({ status: "ok" });
     }
 
-    if (url.pathname === "/api/opportunities" && request.method === "GET") {
-      const query = url.searchParams.get("query") ?? undefined;
-      const source = url.searchParams.get("source") ?? undefined;
-      const minScore = toNumber(url.searchParams.get("minScore"));
-      const limit = toNumber(url.searchParams.get("limit")) ?? 50;
-      const items = await listOpportunities(env.DB, {
-        query,
-        source: source as "grants_gov" | "sam_gov" | "hrsa" | "ted_eu" | undefined,
-        minScore: minScore ?? undefined,
-        limit
-      });
-      return jsonResponse({ items });
-    }
+    const opportunityResponse = await handleOpportunities(request, env, url);
+    if (opportunityResponse) return opportunityResponse;
 
-    if (url.pathname === "/api/admin/summary" && request.method === "GET") {
-      const summary = await getAdminSummary(env.DB);
-      return jsonResponse({ summary });
-    }
+    const adminResponse = await handleAdminRoutes(request, env, ctx, url);
+    if (adminResponse) return adminResponse;
 
-    if (url.pathname === "/api/admin/exclusions" && request.method === "GET") {
-      const activeOnly = url.searchParams.get("active") !== "false";
-      const rules = await listExclusionRules(env.DB, activeOnly);
-      return jsonResponse({ rules });
-    }
+    const sourceResponse = await handleSources(request, env);
+    if (sourceResponse) return sourceResponse;
 
-    if (url.pathname === "/api/admin/exclusions" && request.method === "POST") {
-      const body = await request.json().catch(() => null);
-      if (!body || typeof body !== "object") {
-        return jsonResponse({ error: "Invalid payload" }, 400);
-      }
-      const ruleType = (body as { ruleType?: string }).ruleType;
-      const value = (body as { value?: string }).value;
-      if (!ruleType || !value) {
-        return jsonResponse({ error: "Missing ruleType or value" }, 400);
-      }
-      const cleanedValue = String(value).trim();
-      if (!cleanedValue) {
-        return jsonResponse({ error: "Empty value" }, 400);
-      }
-      if (ruleType !== "excluded_bureau" && ruleType !== "priority_agency") {
-        return jsonResponse({ error: "Unsupported ruleType" }, 400);
-      }
-      const rule = await insertExclusionRule(env.DB, ruleType, cleanedValue);
-      return jsonResponse({ rule }, 201);
-    }
-
-    if (url.pathname.startsWith("/api/admin/exclusions/") && request.method === "DELETE") {
-      const id = url.pathname.split("/").pop();
-      if (!id) return jsonResponse({ error: "Missing rule id" }, 400);
-      const updated = await disableExclusionRule(env.DB, id);
-      return jsonResponse({ disabled: updated });
-    }
-
-    if (url.pathname === "/api/admin/run-sync" && request.method === "POST") {
-      ctx.waitUntil(runSync(env, ctx));
-      return jsonResponse({ status: "started" }, 202);
-    }
-
-    if (url.pathname === "/api/admin/run-ted-sync" && request.method === "POST") {
-      const body = await request.json().catch(() => null);
-      const zipUrl = typeof body?.zipUrl === "string" ? body.zipUrl : undefined;
-      const maxNotices = typeof body?.maxNotices === "number" ? body.maxNotices : undefined;
-      ctx.waitUntil(runTedSync(env, ctx, { zipUrl, maxNotices }));
-      return jsonResponse({ status: "started" }, 202);
-    }
-
-    if (url.pathname.startsWith("/api/opportunities/") && request.method === "GET") {
-      const id = url.pathname.split("/").pop();
-      if (!id) return jsonResponse({ error: "Missing id" }, 400);
-      const item = await getOpportunityById(env.DB, id);
-      if (!item) return jsonResponse({ error: "Not found" }, 404);
-      return jsonResponse({ item });
-    }
+    const opportunityDetail = await handleOpportunityDetail(request, env, url);
+    if (opportunityDetail) return opportunityDetail;
 
     return jsonResponse({ error: "Not found" }, 404);
   }
 };
 
+async function handleOpportunities(request: Request, env: Env, url: URL): Promise<Response | null> {
+  if (url.pathname !== "/api/opportunities" || request.method !== "GET") return null;
+  const query = url.searchParams.get("query") ?? undefined;
+  const source = url.searchParams.get("source") ?? undefined;
+  const minScore = toNumber(url.searchParams.get("minScore"));
+  const limit = toNumber(url.searchParams.get("limit")) ?? 50;
+  const items = await listOpportunities(env.DB, {
+    query,
+    source: source ?? undefined,
+    minScore: minScore ?? undefined,
+    limit
+  });
+  return jsonResponse({ items });
+}
+
+async function handleOpportunityDetail(request: Request, env: Env, url: URL): Promise<Response | null> {
+  if (!url.pathname.startsWith("/api/opportunities/") || request.method !== "GET") return null;
+  const id = url.pathname.split("/").pop();
+  if (!id) return jsonResponse({ error: "Missing id" }, 400);
+  const item = await getOpportunityById(env.DB, id);
+  if (!item) return jsonResponse({ error: "Not found" }, 404);
+  return jsonResponse({ item });
+}
+
+async function handleSources(request: Request, env: Env): Promise<Response | null> {
+  if (request.method !== "GET") return null;
+  const url = new URL(request.url);
+  if (url.pathname !== "/api/sources") return null;
+  const sources = await listFundingSources(env.DB, true);
+  return jsonResponse({
+    sources: sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      country: source.country,
+      homepage: source.homepage
+    }))
+  });
+}
+
+async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response | null> {
+  if (!url.pathname.startsWith("/api/admin")) return null;
+
+  if (url.pathname === "/api/admin/summary" && request.method === "GET") {
+    const summary = await getAdminSummary(env.DB);
+    return jsonResponse({ summary });
+  }
+
+  if (url.pathname === "/api/admin/sources" && request.method === "GET") {
+    const sources = await listFundingSources(env.DB, false);
+    return jsonResponse({ sources });
+  }
+
+  if (url.pathname.startsWith("/api/admin/sources/") && request.method === "PATCH") {
+    const id = url.pathname.split("/").pop();
+    if (!id) return jsonResponse({ error: "Missing source id" }, 400);
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return jsonResponse({ error: "Invalid payload" }, 400);
+    }
+    const { integrationType, autoUrl, active } = body as {
+      integrationType?: string;
+      autoUrl?: string | null;
+      active?: boolean;
+    };
+    if (integrationType && !isIntegrationType(integrationType)) {
+      return jsonResponse({ error: "Unsupported integrationType" }, 400);
+    }
+    const updated = await updateFundingSource(env.DB, id, {
+      integrationType: integrationType ?? undefined,
+      autoUrl: typeof autoUrl === "string" ? autoUrl.trim() || null : autoUrl,
+      active: typeof active === "boolean" ? active : undefined
+    });
+    return jsonResponse({ updated });
+  }
+
+  if (url.pathname.startsWith("/api/admin/sources/") && url.pathname.endsWith("/sync") && request.method === "POST") {
+    const id = url.pathname.split("/").slice(-2)[0];
+    if (!id) return jsonResponse({ error: "Missing source id" }, 400);
+    const body = await request.json().catch(() => null);
+    const urlOverride = typeof body?.url === "string" ? body.url : undefined;
+    const maxNotices = typeof body?.maxNotices === "number" ? body.maxNotices : undefined;
+    ctx.waitUntil(runSourceSync(env, ctx, id, { url: urlOverride, maxNotices }));
+    return jsonResponse({ status: "started" }, 202);
+  }
+
+  if (url.pathname === "/api/admin/exclusions" && request.method === "GET") {
+    const activeOnly = url.searchParams.get("active") !== "false";
+    const rules = await listExclusionRules(env.DB, activeOnly);
+    return jsonResponse({ rules });
+  }
+
+  if (url.pathname === "/api/admin/exclusions" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return jsonResponse({ error: "Invalid payload" }, 400);
+    }
+    const ruleType = (body as { ruleType?: string }).ruleType;
+    const value = (body as { value?: string }).value;
+    if (!ruleType || !value) {
+      return jsonResponse({ error: "Missing ruleType or value" }, 400);
+    }
+    const cleanedValue = String(value).trim();
+    if (!cleanedValue) {
+      return jsonResponse({ error: "Empty value" }, 400);
+    }
+    if (ruleType !== "excluded_bureau" && ruleType !== "priority_agency") {
+      return jsonResponse({ error: "Unsupported ruleType" }, 400);
+    }
+    const rule = await insertExclusionRule(env.DB, ruleType, cleanedValue);
+    return jsonResponse({ rule }, 201);
+  }
+
+  if (url.pathname.startsWith("/api/admin/exclusions/") && request.method === "DELETE") {
+    const id = url.pathname.split("/").pop();
+    if (!id) return jsonResponse({ error: "Missing rule id" }, 400);
+    const updated = await disableExclusionRule(env.DB, id);
+    return jsonResponse({ disabled: updated });
+  }
+
+  if (url.pathname === "/api/admin/run-sync" && request.method === "POST") {
+    ctx.waitUntil(runSync(env, ctx));
+    return jsonResponse({ status: "started" }, 202);
+  }
+
+  return null;
+}
+
 async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
-  const sources = [syncGrantsGov, syncSamGov, syncHrsa, syncTedEu];
+  const sources = [syncGrantsGov, syncSamGov, syncHrsa];
   const pdfJobs: PdfJob[] = [];
   const updated = new Map<string, boolean>();
   const rules = await listExclusionRules(env.DB, true);
@@ -135,6 +205,8 @@ async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
     }
     pdfJobs.push(...newJobs);
   }
+
+  await syncCatalogSources(env, ctx, rules);
 
   for (const job of pdfJobs) {
     const key = `${job.source}:${job.opportunityId}`;
@@ -155,15 +227,50 @@ async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
   );
 }
 
-async function runTedSync(
+async function syncCatalogSources(env: Env, ctx: ExecutionContext, rules: Awaited<ReturnType<typeof listExclusionRules>>): Promise<void> {
+  const sources = await listFundingSources(env.DB, true);
+  for (const source of sources) {
+    if (source.integrationType === "core_api") continue;
+    if (source.integrationType === "manual_url" && !source.autoUrl) continue;
+    await syncAndStoreSource(env, ctx, source, rules, {});
+  }
+}
+
+async function runSourceSync(
   env: Env,
   ctx: ExecutionContext,
-  options: { zipUrl?: string; maxNotices?: number }
+  sourceId: string,
+  options: { url?: string; maxNotices?: number }
 ): Promise<void> {
   const rules = await listExclusionRules(env.DB, true);
-  const { records } = await syncTedEu(env, ctx, rules, options);
-  for (const record of records) {
-    await upsertOpportunity(env.DB, record);
+  const source = await getFundingSource(env.DB, sourceId);
+  if (!source) {
+    console.warn("source not found", sourceId);
+    return;
+  }
+  await syncAndStoreSource(env, ctx, source, rules, options);
+}
+
+async function syncAndStoreSource(
+  env: Env,
+  ctx: ExecutionContext,
+  source: Awaited<ReturnType<typeof getFundingSource>>,
+  rules: Awaited<ReturnType<typeof listExclusionRules>>,
+  options: { url?: string; maxNotices?: number }
+): Promise<void> {
+  if (!source) return;
+  try {
+    const records = await syncFundingSource(env, ctx, source, rules, options);
+    let ingested = 0;
+    for (const record of records) {
+      const result = await upsertOpportunity(env.DB, record);
+      if (result.updated) ingested += 1;
+    }
+    await updateFundingSourceSync(env.DB, source.id, { status: "success", ingested });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    await updateFundingSourceSync(env.DB, source.id, { status: "failed", error: message });
+    console.error("source sync failed", source.id, error);
   }
 }
 

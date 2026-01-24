@@ -2,9 +2,10 @@ type SearchFormProps = {
   query?: string;
   source?: string;
   minScore?: string;
+  sources?: Array<{ id: string; name: string; country?: string | null }>;
 };
 
-export default function SearchForm({ query, source, minScore }: SearchFormProps) {
+export default function SearchForm({ query, source, minScore, sources = [] }: SearchFormProps) {
   return (
     <form method="get" action="/" className="card card--flat grid search-form">
       <label style={{ display: "grid", gap: "6px" }}>
@@ -18,13 +19,20 @@ export default function SearchForm({ query, source, minScore }: SearchFormProps)
       </label>
       <label style={{ display: "grid", gap: "6px" }}>
         <span className="pill">Source</span>
-        <select className="select" name="source" defaultValue={source ?? ""}>
-          <option value="">All</option>
-          <option value="grants_gov">Grants.gov</option>
-          <option value="sam_gov">SAM.gov</option>
-          <option value="hrsa">HRSA</option>
-          <option value="ted_eu">TED.eu</option>
-        </select>
+        <input
+          className="input"
+          list="sourceOptions"
+          name="source"
+          defaultValue={source ?? ""}
+          placeholder="all sources"
+        />
+        <datalist id="sourceOptions">
+          {sources.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </datalist>
       </label>
       <label style={{ display: "grid", gap: "6px" }}>
         <span className="pill">Min feasibility</span>

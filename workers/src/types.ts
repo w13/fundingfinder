@@ -1,4 +1,19 @@
-export type SourceSystem = "grants_gov" | "sam_gov" | "hrsa" | "ted_eu";
+export type SourceSystem = string;
+
+export const INTEGRATION_TYPES = [
+  "core_api",
+  "ted_xml_zip",
+  "bulk_xml_zip",
+  "bulk_xml",
+  "bulk_json",
+  "manual_url"
+] as const;
+
+export type SourceIntegrationType = (typeof INTEGRATION_TYPES)[number];
+
+export function isIntegrationType(value: string | null | undefined): value is SourceIntegrationType {
+  return INTEGRATION_TYPES.includes(value as SourceIntegrationType);
+}
 
 export interface OpportunityRecord {
   id: string;
@@ -67,6 +82,23 @@ export interface AdminSummary {
   }>;
 }
 
+export interface FundingSource {
+  id: SourceSystem;
+  name: string;
+  country: string | null;
+  homepage: string | null;
+  integrationType: SourceIntegrationType;
+  autoUrl: string | null;
+  expectedResults: number | null;
+  active: boolean;
+  lastSync: string | null;
+  lastStatus: string | null;
+  lastError: string | null;
+  lastIngested: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Env {
   DB: D1Database;
   PDF_BUCKET: R2Bucket;
@@ -79,6 +111,7 @@ export interface Env {
   HRSA_API_KEY?: string;
   TED_BULK_DOWNLOAD_URL?: string;
   TED_MAX_NOTICES?: string;
+  BULK_MAX_NOTICES?: string;
   COMPANY_PROFILE?: string;
   EXCLUDED_BUREAUS?: string;
   PRIORITY_AGENCIES?: string;

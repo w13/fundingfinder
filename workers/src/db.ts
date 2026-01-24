@@ -1,4 +1,14 @@
-import type { AdminSummary, AnalysisResult, ExclusionRule, ExclusionRuleType, OpportunityRecord, SectionSlices, SourceSystem } from "./types";
+import type {
+  AdminSummary,
+  AnalysisResult,
+  ExclusionRule,
+  ExclusionRuleType,
+  FundingSource,
+  OpportunityRecord,
+  SectionSlices,
+  SourceIntegrationType,
+  SourceSystem
+} from "./types";
 import { safeJsonParse } from "./utils";
 
 export interface OpportunityQuery {
@@ -411,4 +421,165 @@ export async function getAdminSummary(db: D1Database): Promise<AdminSummary> {
     lastUpdated: totals?.lastUpdated ?? null,
     sources: sources.results ?? []
   };
+}
+
+export async function listFundingSources(db: D1Database, activeOnly = false): Promise<FundingSource[]> {
+  const whereClause = activeOnly ? "WHERE active = 1" : "";
+  const results = await db
+    .prepare(
+      `SELECT
+        id,
+        name,
+        country,
+        homepage,
+        integration_type as integrationType,
+        auto_url as autoUrl,
+        expected_results as expectedResults,
+        active,
+        last_sync as lastSync,
+        last_status as lastStatus,
+        last_error as lastError,
+        last_ingested as lastIngested,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM funding_sources
+      ${whereClause}
+      ORDER BY name`
+    )
+    .all<{
+      id: string;
+      name: string;
+      country: string | null;
+      homepage: string | null;
+      integrationType: SourceIntegrationType;
+      autoUrl: string | null;
+      expectedResults: number | null;
+      active: number;
+      lastSync: string | null;
+      lastStatus: string | null;
+      lastError: string | null;
+      lastIngested: number | null;
+      createdAt: string;
+      updatedAt: string;
+    }>();
+
+  return (
+    results.results?.map((row) => ({
+      ...row,
+      active: Boolean(row.active),
+      lastIngested: Number(row.lastIngested ?? 0)
+    })) ?? []
+  );
+}
+
+export async function getFundingSource(db: D1Database, id: string): Promise<FundingSource | null> {
+  const row = await db
+    .prepare(
+      `SELECT
+        id,
+        name,
+        country,
+        homepage,
+        integration_type as integrationType,
+        auto_url as autoUrl,
+        expected_results as expectedResults,
+        active,
+        last_sync as lastSync,
+        last_status as lastStatus,
+        last_error as lastError,
+        last_ingested as lastIngested,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM funding_sources
+      WHERE id = ?`
+    )
+    .bind(id)
+    .first<{
+      id: string;
+      name: string;
+      country: string | null;
+      homepage: string | null;
+      integrationType: SourceIntegrationType;
+      autoUrl: string | null;
+      expectedResults: number | null;
+      active: number;
+      lastSync: string | null;
+      lastStatus: string | null;
+      lastError: string | null;
+      lastIngested: number | null;
+      createdAt: string;
+      updatedAt: string;
+    }>();
+
+  if (!row) return null;
+  return {
+    ...row,
+    active: Boolean(row.active),
+    lastIngested: Number(row.lastIngested ?? 0)
+  };
+}
+
+export async function updateFundingSource(
+  db: D1Database,
+  id: string,
+  updates: {
+    integrationType?: SourceIntegrationType;
+    autoUrl?: string | null;
+    active?: boolean;
+  }
+): Promise<boolean> {
+  const fields: string[] = [];
+  const values: Array<string | number | null> = [];
+
+  if (updates.integrationType) {
+    fields.push("integration_type = ?");
+    values.push(updates.integrationType);
+  }
+  if (typeof updates.autoUrl !== "undefined") {
+    fields.push("auto_url = ?");
+    values.push(updates.autoUrl);
+  }
+  if (typeof updates.active === "boolean") {
+    fields.push("active = ?");
+    values.push(updates.active ? 1 : 0);
+  }
+
+  if (fields.length === 0) return false;
+
+  fields.push("updated_at = ?");
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  const result = await db
+    .prepare(`UPDATE funding_sources SET ${fields.join(", ")} WHERE id = ?`)
+    .bind(...values)
+    .run();
+
+  return Boolean(result.meta?.changes);
+}
+
+export async function updateFundingSourceSync(
+  db: D1Database,
+  id: string,
+  payload: { status: string; error?: string | null; ingested?: number }
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE funding_sources SET
+        last_sync = ?,
+        last_status = ?,
+        last_error = ?,
+        last_ingested = ?,
+        updated_at = ?
+      WHERE id = ?`
+    )
+    .bind(
+      new Date().toISOString(),
+      payload.status,
+      payload.error ?? null,
+      payload.ingested ?? 0,
+      new Date().toISOString(),
+      id
+    )
+    .run();
 }

@@ -4,12 +4,15 @@ import OpportunityList from "../../components/OpportunityList";
 import {
   fetchAdminSummary,
   fetchExclusionRules,
+  fetchFundingSources,
   createExclusionRule,
   disableExclusionRule,
+  syncFundingSource,
   triggerIngestionSync,
-  triggerTedSync
+  updateFundingSource
 } from "../../lib/admin";
 import { fetchOpportunities } from "../../lib/opportunities";
+import { INTEGRATION_TYPE_OPTIONS } from "../../lib/constants";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -21,10 +24,11 @@ export default async function AdminPage({ searchParams }: PageProps) {
   const tabParam = typeof searchParams?.tab === "string" ? searchParams.tab : "overview";
   const activeTab = VALID_TABS.includes(tabParam) ? tabParam : "overview";
 
-  const [summaryResult, exclusionsResult, highSignal] = await Promise.all([
+  const [summaryResult, exclusionsResult, highSignal, sourcesResult] = await Promise.all([
     fetchAdminSummary(),
     fetchExclusionRules(),
-    fetchOpportunities({ minScore: "75", limit: 5 })
+    fetchOpportunities({ minScore: "75", limit: 5 }),
+    fetchFundingSources()
   ]);
 
   return (
@@ -47,7 +51,9 @@ export default async function AdminPage({ searchParams }: PageProps) {
       {activeTab === "overview" ? (
         <OverviewTab summary={summaryResult.summary} highSignal={highSignal.items} />
       ) : null}
-      {activeTab === "sources" ? <SourcesTab summary={summaryResult.summary} /> : null}
+      {activeTab === "sources" ? (
+        <SourcesTab sources={sourcesResult.sources} warning={sourcesResult.warning} />
+      ) : null}
       {activeTab === "exclusions" ? (
         <ExclusionsTab rules={exclusionsResult.rules} warning={exclusionsResult.warning} />
       ) : null}
@@ -66,13 +72,6 @@ function OverviewTab({
   async function handleRunSync() {
     "use server";
     await triggerIngestionSync();
-    revalidatePath("/admin");
-  }
-
-  async function handleRunTedSync(formData: FormData) {
-    "use server";
-    const zipUrl = String(formData.get("zipUrl") ?? "").trim();
-    await triggerTedSync(zipUrl || undefined);
     revalidatePath("/admin");
   }
 
@@ -107,15 +106,6 @@ function OverviewTab({
             </button>
           </form>
         </div>
-        <div className="card" style={{ display: "grid", gap: "8px" }}>
-          <p className="muted">TED bulk import</p>
-          <form action={handleRunTedSync} className="grid">
-            <input className="input" name="zipUrl" placeholder="Optional TED zip URL override" />
-            <button className="button button--secondary" type="submit">
-              Run TED import
-            </button>
-          </form>
-        </div>
       </div>
 
       <div className="card">
@@ -126,34 +116,161 @@ function OverviewTab({
   );
 }
 
-function SourcesTab({ summary }: { summary: Awaited<ReturnType<typeof fetchAdminSummary>>["summary"] }) {
+function SourcesTab({
+  sources,
+  warning
+}: {
+  sources: Awaited<ReturnType<typeof fetchFundingSources>>["sources"];
+  warning?: string;
+}) {
+  async function handleSourceSync(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const url = String(formData.get("url") ?? "").trim();
+    const maxNotices = Number(formData.get("maxNotices") ?? "");
+    if (!sourceId) return;
+    await syncFundingSource(sourceId, {
+      url: url || undefined,
+      maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
+    });
+    revalidatePath("/admin?tab=sources");
+  }
+
+  async function handleSourceUpdate(formData: FormData) {
+    "use server";
+    const sourceId = String(formData.get("sourceId") ?? "").trim();
+    const autoUrl = String(formData.get("autoUrl") ?? "").trim();
+    const integrationType = String(formData.get("integrationType") ?? "").trim();
+    const active = formData.get("active") === "on";
+    if (!sourceId) return;
+    await updateFundingSource(sourceId, {
+      integrationType: integrationType as "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "manual_url",
+      autoUrl: autoUrl ? autoUrl : null,
+      active
+    });
+    revalidatePath("/admin?tab=sources");
+  }
+
   return (
-    <section className="card">
-      <h3 style={{ marginTop: 0 }}>Source coverage</h3>
-      {summary?.sources?.length ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Source</th>
-              <th>Total</th>
-              <th>For-profit</th>
-              <th>Last updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.sources.map((source) => (
-              <tr key={source.source}>
-                <td>{source.source.replace("_", ".")}</td>
-                <td>{source.total}</td>
-                <td>{source.forProfitEligible}</td>
-                <td>{source.lastUpdated ?? "N/A"}</td>
+    <section className="grid">
+      {warning ? (
+        <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e" }}>
+          {warning}
+        </div>
+      ) : null}
+
+      <div className="grid grid-2">
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Manual import</h3>
+          <form className="grid" action={handleSourceSync}>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span className="pill">Source</span>
+              <select className="select" name="sourceId">
+                {sources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span className="pill">Download URL override</span>
+              <input className="input" name="url" placeholder="https://example.com/export.zip" />
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span className="pill">Max notices</span>
+              <input className="input" name="maxNotices" placeholder="500" />
+            </label>
+            <button className="button" type="submit">
+              Run import
+            </button>
+          </form>
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Automation settings</h3>
+          <form className="grid" action={handleSourceUpdate}>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span className="pill">Source</span>
+              <select className="select" name="sourceId">
+                {sources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span className="pill">Integration type</span>
+              <select className="select" name="integrationType" defaultValue="manual_url">
+                {INTEGRATION_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span className="pill">Auto URL</span>
+              <input className="input" name="autoUrl" placeholder="https://example.com/daily.zip" />
+            </label>
+            <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input type="checkbox" name="active" />
+              <span className="pill">Enable cron sync</span>
+            </label>
+            <button className="button button--secondary" type="submit">
+              Save settings
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Source registry</h3>
+        {sources.length ? (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Auto URL</th>
+                <th>Active</th>
+                <th>Expected</th>
+                <th>Last sync</th>
+                <th>Last ingested</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="muted">No source data available yet.</p>
-      )}
+            </thead>
+            <tbody>
+              {sources.map((source) => (
+                <tr key={source.id}>
+                  <td>
+                    <div>{source.name}</div>
+                    <div className="muted" style={{ fontSize: "12px" }}>
+                      {source.country ?? "Global"} - {source.id}
+                    </div>
+                  </td>
+                  <td>{source.integrationType}</td>
+                  <td>
+                    {source.autoUrl
+                      ? source.autoUrl.length > 32
+                        ? source.autoUrl.slice(0, 32) + "..."
+                        : source.autoUrl
+                      : "—"}
+                  </td>
+                  <td>{source.active ? "Yes" : "No"}</td>
+                  <td>{source.expectedResults ?? "—"}</td>
+                  <td>{source.lastSync ?? "—"}</td>
+                  <td>{source.lastIngested ?? 0}</td>
+                  <td>{source.lastStatus ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">No sources configured yet. Seed the registry in D1 to get started.</p>
+        )}
+      </div>
     </section>
   );
 }

@@ -10,6 +10,7 @@ PRIORITY_AGENCIES = "HHS, NIH, DoD, Defense Health Agency"
 POLITE_DELAY_MS = "400"
 TED_BULK_DOWNLOAD_URL = "https://ted.europa.eu/en/simap/xml-bulk-download"
 TED_MAX_NOTICES = "500"
+BULK_MAX_NOTICES = "500"
 
 [[d1_databases]]
 binding = "DB"
@@ -32,3 +33,6 @@ max_batch_timeout = 30
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "grant-sentinel-index"
+
+[triggers]
+crons = ["0 2 * * *"]

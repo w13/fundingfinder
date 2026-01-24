@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Opportunity } from "../lib/types";
+import { formatSourceLabel } from "../lib/format";
 import { ScoreBadge } from "./ScoreBadge";
 
 type OpportunityListProps = {
@@ -31,7 +32,7 @@ export default function OpportunityList({ items }: OpportunityListProps) {
             <div>
               <h3 style={{ margin: 0, fontSize: "18px" }}>{item.title}</h3>
               <p className="muted" style={{ margin: "4px 0 0" }}>
-                {item.agency ?? "Unknown agency"} · {item.source.replace("_", ".")}
+                {item.agency ?? "Unknown agency"} · {formatSourceLabel(item.source)}
               </p>
             </div>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>

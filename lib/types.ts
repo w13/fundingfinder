@@ -60,3 +60,27 @@ export type ExclusionRule = {
   active: boolean;
   createdAt: string;
 };
+
+export type FundingSource = {
+  id: string;
+  name: string;
+  country: string | null;
+  homepage: string | null;
+  integrationType: "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "manual_url";
+  autoUrl: string | null;
+  expectedResults: number | null;
+  active: boolean;
+  lastSync: string | null;
+  lastStatus: string | null;
+  lastError: string | null;
+  lastIngested: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SourceOption = {
+  id: string;
+  name: string;
+  country: string | null;
+  homepage: string | null;
+};
