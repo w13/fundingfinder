@@ -16,7 +16,10 @@ export async function analyzeFeasibility(
 
   const prompt = [
     "You are Grant Sentinel, an analyst for private-sector grant eligibility.",
-    "Return JSON only with fields: feasibility_score (0-100), profitability_score (0-100), summary_bullets (3 items), constraints (array).",
+    "Return JSON only with fields:",
+    "feasibility_score (0-100), suitability_score (0-100), profitability_score (0-100),",
+    "summary_bullets (3 items), constraints (array).",
+    "Suitability measures fit to the company profile (partnerships, eligibility, stack).",
     `Company profile: ${companyProfile}`,
     `Opportunity: ${opportunityTitle}`,
     `Grant text: ${content.slice(0, 6000)}`
@@ -33,6 +36,7 @@ export async function analyzeFeasibility(
   const text = extractText(response);
   const parsed = safeJsonParse<{
     feasibility_score?: number;
+    suitability_score?: number;
     profitability_score?: number;
     summary_bullets?: string[];
     constraints?: string[];
@@ -40,6 +44,7 @@ export async function analyzeFeasibility(
 
   return {
     feasibilityScore: clampScore(parsed?.feasibility_score),
+    suitabilityScore: clampScore(parsed?.suitability_score ?? parsed?.feasibility_score),
     profitabilityScore: clampScore(parsed?.profitability_score),
     summaryBullets: normalizeBullets(parsed?.summary_bullets),
     constraints: normalizeBullets(parsed?.constraints),

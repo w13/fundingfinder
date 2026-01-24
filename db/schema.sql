@@ -46,11 +46,20 @@ CREATE TABLE IF NOT EXISTS analyses (
   opportunity_id TEXT NOT NULL,
   source TEXT NOT NULL,
   feasibility_score REAL NOT NULL,
+  suitability_score REAL,
   profitability_score REAL NOT NULL,
   summary TEXT NOT NULL,
   constraints TEXT,
   model TEXT,
   created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shortlist (
+  id TEXT PRIMARY KEY,
+  opportunity_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (opportunity_id, source)
 );
 
 CREATE TABLE IF NOT EXISTS exclusion_rules (

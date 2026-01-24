@@ -46,6 +46,7 @@ export interface PdfJob {
 
 export interface AnalysisResult {
   feasibilityScore: number;
+  suitabilityScore: number;
   profitabilityScore: number;
   summaryBullets: string[];
   constraints: string[];

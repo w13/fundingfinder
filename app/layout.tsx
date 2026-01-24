@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <nav className="header__nav">
                 <Link href="/">Dashboard</Link>
+                <Link href="/shortlist">Shortlist</Link>
                 <Link href="/admin">Admin</Link>
                 <Link href="/admin?tab=sources">Sources</Link>
                 <Link href="https://ted.europa.eu/">TED</Link>

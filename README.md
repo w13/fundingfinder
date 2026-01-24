@@ -101,6 +101,11 @@ Sources tab to:
 - Configure an auto URL + integration type for cron-style ingest.
 - Monitor last sync status and ingested counts.
 
+## Shortlist + AI Analysis
+
+Use the Shortlist page to collect high-priority opportunities and trigger AI analysis on demand. The analysis pipeline
+stores feasibility, suitability, and profitability scores for quick triage.
+
 ### Adding or Updating Sources
 
 Source-specific parsing logic lives in `workers/src/sources/`. When a source format changes (or you add a new source),
@@ -121,6 +126,10 @@ The D1 schema lives in `db/schema.sql` and includes:
 - `GET /api/opportunities/:id`
 - `GET /api/sources`
 - `GET /health`
+- `GET /api/shortlist`
+- `POST /api/shortlist`
+- `POST /api/shortlist/remove`
+- `POST /api/shortlist/analyze`
 - `GET /api/admin/sources`
 - `PATCH /api/admin/sources/:id`
 - `POST /api/admin/sources/:id/sync`

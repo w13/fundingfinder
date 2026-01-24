@@ -30,6 +30,7 @@ export interface OpportunityListItem {
   dueDate: string | null;
   keywordScore: number;
   feasibilityScore: number | null;
+  suitabilityScore: number | null;
   profitabilityScore: number | null;
 }
 
@@ -46,6 +47,32 @@ export interface OpportunityDetail extends OpportunityListItem {
     r2Key: string;
     sectionMap: SectionSlices | null;
   }>;
+}
+
+export interface ShortlistItem {
+  shortlistId: string;
+  opportunityRecordId: string;
+  opportunityId: string;
+  source: SourceSystem;
+  title: string;
+  agency: string | null;
+  summary: string | null;
+  postedDate: string | null;
+  dueDate: string | null;
+  feasibilityScore: number | null;
+  suitabilityScore: number | null;
+  profitabilityScore: number | null;
+}
+
+export interface ShortlistAnalysisCandidate {
+  shortlistId: string;
+  opportunityId: string;
+  source: SourceSystem;
+  title: string;
+  summary: string | null;
+  eligibility: string | null;
+  textExcerpt: string | null;
+  sectionMap: SectionSlices | null;
 }
 
 export async function upsertOpportunity(db: D1Database, record: OpportunityRecord): Promise<{ id: string; version: number; updated: boolean }> {
@@ -176,6 +203,7 @@ export async function listOpportunities(db: D1Database, query: OpportunityQuery)
       o.due_date as dueDate,
       o.keyword_score as keywordScore,
       a.feasibility_score as feasibilityScore,
+      a.suitability_score as suitabilityScore,
       a.profitability_score as profitabilityScore
     FROM opportunities o
     LEFT JOIN analyses a
@@ -213,6 +241,7 @@ export async function getOpportunityById(db: D1Database, id: string): Promise<Op
         o.due_date as dueDate,
         o.url,
         a.feasibility_score as feasibilityScore,
+        a.suitability_score as suitabilityScore,
         a.profitability_score as profitabilityScore,
         a.summary as analysisSummary,
         a.constraints as constraints
@@ -243,6 +272,7 @@ export async function getOpportunityById(db: D1Database, id: string): Promise<Op
       dueDate: string | null;
       url: string | null;
       feasibilityScore: number | null;
+      suitabilityScore: number | null;
       profitabilityScore: number | null;
       analysisSummary: string | null;
       constraints: string | null;
@@ -275,6 +305,7 @@ export async function getOpportunityById(db: D1Database, id: string): Promise<Op
     dueDate: row.dueDate,
     url: row.url,
     feasibilityScore: row.feasibilityScore,
+    suitabilityScore: row.suitabilityScore,
     profitabilityScore: row.profitabilityScore,
     analysisSummary: safeJsonParse<string[]>(row.analysisSummary) ?? [],
     constraints: safeJsonParse<string[]>(row.constraints) ?? [],
@@ -319,14 +350,15 @@ export async function insertAnalysis(db: D1Database, opportunityId: string, sour
   await db
     .prepare(
       `INSERT INTO analyses (
-        id, opportunity_id, source, feasibility_score, profitability_score, summary, constraints, model, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        id, opportunity_id, source, feasibility_score, suitability_score, profitability_score, summary, constraints, model, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       crypto.randomUUID(),
       opportunityId,
       source,
       analysis.feasibilityScore,
+      analysis.suitabilityScore,
       analysis.profitabilityScore,
       JSON.stringify(analysis.summaryBullets),
       JSON.stringify(analysis.constraints),
@@ -334,6 +366,130 @@ export async function insertAnalysis(db: D1Database, opportunityId: string, sour
       new Date().toISOString()
     )
     .run();
+}
+
+export async function listShortlist(db: D1Database): Promise<ShortlistItem[]> {
+  const results = await db
+    .prepare(
+      `SELECT
+        s.id as shortlistId,
+        o.id as opportunityRecordId,
+        o.opportunity_id as opportunityId,
+        o.source,
+        o.title,
+        o.agency,
+        o.summary,
+        o.posted_date as postedDate,
+        o.due_date as dueDate,
+        a.feasibility_score as feasibilityScore,
+        a.suitability_score as suitabilityScore,
+        a.profitability_score as profitabilityScore
+      FROM shortlist s
+      JOIN opportunities o ON o.opportunity_id = s.opportunity_id AND o.source = s.source
+      LEFT JOIN analyses a
+        ON a.opportunity_id = o.opportunity_id
+        AND a.source = o.source
+        AND a.created_at = (
+          SELECT MAX(created_at) FROM analyses
+          WHERE opportunity_id = o.opportunity_id AND source = o.source
+        )
+      ORDER BY s.created_at DESC`
+    )
+    .all<ShortlistItem>();
+
+  return results.results ?? [];
+}
+
+export async function addShortlist(db: D1Database, opportunityId: string, source: SourceSystem): Promise<{ id: string; created: boolean }> {
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  await db
+    .prepare("INSERT OR IGNORE INTO shortlist (id, opportunity_id, source, created_at) VALUES (?, ?, ?, ?)")
+    .bind(id, opportunityId, source, createdAt)
+    .run();
+
+  const existing = await db
+    .prepare("SELECT id FROM shortlist WHERE opportunity_id = ? AND source = ?")
+    .bind(opportunityId, source)
+    .first<{ id: string }>();
+
+  return { id: existing?.id ?? id, created: existing?.id === id };
+}
+
+export async function removeShortlist(db: D1Database, shortlistId: string): Promise<boolean> {
+  const result = await db.prepare("DELETE FROM shortlist WHERE id = ?").bind(shortlistId).run();
+  return Boolean(result.meta?.changes);
+}
+
+export async function removeShortlistByOpportunity(
+  db: D1Database,
+  opportunityId: string,
+  source: SourceSystem
+): Promise<boolean> {
+  const result = await db
+    .prepare("DELETE FROM shortlist WHERE opportunity_id = ? AND source = ?")
+    .bind(opportunityId, source)
+    .run();
+  return Boolean(result.meta?.changes);
+}
+
+export async function listShortlistForAnalysis(
+  db: D1Database,
+  shortlistIds?: string[]
+): Promise<ShortlistAnalysisCandidate[]> {
+  const hasIds = Array.isArray(shortlistIds) && shortlistIds.length > 0;
+  const placeholders = hasIds ? shortlistIds.map(() => "?").join(",") : "";
+  const whereClause = hasIds ? `WHERE s.id IN (${placeholders})` : "";
+
+  const statement = `
+    SELECT
+      s.id as shortlistId,
+      o.opportunity_id as opportunityId,
+      o.source,
+      o.title,
+      o.summary,
+      o.eligibility,
+      d.text_excerpt as textExcerpt,
+      d.section_map as sectionMap
+    FROM shortlist s
+    JOIN opportunities o ON o.opportunity_id = s.opportunity_id AND o.source = s.source
+    LEFT JOIN documents d
+      ON d.opportunity_id = o.opportunity_id
+      AND d.source = o.source
+      AND d.created_at = (
+        SELECT MAX(created_at) FROM documents
+        WHERE opportunity_id = o.opportunity_id AND source = o.source
+      )
+    ${whereClause}
+    ORDER BY s.created_at DESC
+  `;
+
+  const results = await db
+    .prepare(statement)
+    .bind(...(hasIds ? shortlistIds : []))
+    .all<{
+      shortlistId: string;
+      opportunityId: string;
+      source: SourceSystem;
+      title: string;
+      summary: string | null;
+      eligibility: string | null;
+      textExcerpt: string | null;
+      sectionMap: string | null;
+    }>();
+
+  return (
+    results.results?.map((row) => ({
+      shortlistId: row.shortlistId,
+      opportunityId: row.opportunityId,
+      source: row.source,
+      title: row.title,
+      summary: row.summary,
+      eligibility: row.eligibility,
+      textExcerpt: row.textExcerpt,
+      sectionMap: safeJsonParse<SectionSlices>(row.sectionMap)
+    })) ?? []
+  );
 }
 
 export async function listExclusionRules(db: D1Database, activeOnly = true): Promise<ExclusionRule[]> {

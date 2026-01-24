@@ -1,10 +1,20 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 import { fetchOpportunityById } from "../../../lib/opportunities";
 import { ScoreBadge } from "../../../components/ScoreBadge";
 import { formatSourceLabel } from "../../../lib/format";
+import { addShortlist } from "../../../lib/shortlist";
 
 export default async function OpportunityPage({ params }: { params: { id: string } }) {
   const item = await fetchOpportunityById(params.id);
+
+  async function handleShortlist() {
+    "use server";
+    if (!item) return;
+    await addShortlist(item.opportunityId, item.source);
+    revalidatePath(`/opportunities/${params.id}`);
+    revalidatePath("/shortlist");
+  }
 
   if (!item) {
     return (
@@ -32,8 +42,14 @@ export default async function OpportunityPage({ params }: { params: { id: string
         </p>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
           <ScoreBadge label="Feasibility" value={item.feasibilityScore} />
+          <ScoreBadge label="Suitability" value={item.suitabilityScore ?? null} />
           <ScoreBadge label="Profitability" value={item.profitabilityScore} />
         </div>
+        <form action={handleShortlist} style={{ marginTop: "12px" }}>
+          <button className="button button--secondary" type="submit">
+            Add to shortlist
+          </button>
+        </form>
       </div>
 
       <section className="card">

@@ -10,6 +10,7 @@ export type Opportunity = {
   dueDate: string | null;
   keywordScore: number;
   feasibilityScore: number | null;
+  suitabilityScore?: number | null;
   profitabilityScore: number | null;
 };
 
@@ -83,4 +84,19 @@ export type SourceOption = {
   name: string;
   country: string | null;
   homepage: string | null;
+};
+
+export type ShortlistItem = {
+  shortlistId: string;
+  opportunityRecordId: string;
+  opportunityId: string;
+  source: string;
+  title: string;
+  agency: string | null;
+  summary: string | null;
+  postedDate: string | null;
+  dueDate: string | null;
+  feasibilityScore: number | null;
+  suitabilityScore: number | null;
+  profitabilityScore: number | null;
 };

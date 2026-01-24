@@ -2,6 +2,7 @@ import SearchForm from "../components/SearchForm";
 import OpportunityList from "../components/OpportunityList";
 import { fetchOpportunities } from "../lib/opportunities";
 import { fetchSourceOptions } from "../lib/sources";
+import { fetchShortlist } from "../lib/shortlist";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -12,16 +13,19 @@ export default async function Page({ searchParams }: PageProps) {
   const source = typeof searchParams?.source === "string" ? searchParams.source : "";
   const minScore = typeof searchParams?.minScore === "string" ? searchParams.minScore : "";
 
-  const [{ items, warning }, sourcesResult] = await Promise.all([
+  const [{ items, warning }, sourcesResult, shortlistResult] = await Promise.all([
     fetchOpportunities({
       query: query || undefined,
       source: source || undefined,
       minScore: minScore || undefined
     }),
-    fetchSourceOptions()
+    fetchSourceOptions(),
+    fetchShortlist()
   ]);
 
-  const combinedWarning = warning ?? sourcesResult.warning;
+  const shortlistKeys = shortlistResult.items.map((item) => `${item.source}:${item.opportunityId}`);
+
+  const combinedWarning = warning ?? sourcesResult.warning ?? shortlistResult.warning;
 
   return (
     <div className="grid">
@@ -62,7 +66,7 @@ export default async function Page({ searchParams }: PageProps) {
 
       <SearchForm query={query} source={source} minScore={minScore} sources={sourcesResult.sources} />
 
-      <OpportunityList items={items} />
+      <OpportunityList items={items} shortlistKeys={shortlistKeys} showShortlistActions />
     </div>
   );
 }

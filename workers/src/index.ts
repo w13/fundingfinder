@@ -10,6 +10,11 @@ import {
   getOpportunityById,
   insertDocument,
   insertAnalysis,
+  listShortlist,
+  addShortlist,
+  removeShortlist,
+  removeShortlistByOpportunity,
+  listShortlistForAnalysis,
   listExclusionRules,
   insertExclusionRule,
   disableExclusionRule,
@@ -56,6 +61,9 @@ export default {
 
     const sourceResponse = await handleSources(request, env);
     if (sourceResponse) return sourceResponse;
+
+    const shortlistResponse = await handleShortlistRoutes(request, env, ctx, url);
+    if (shortlistResponse) return shortlistResponse;
 
     const opportunityDetail = await handleOpportunityDetail(request, env, url);
     if (opportunityDetail) return opportunityDetail;
@@ -191,6 +199,58 @@ async function handleAdminRoutes(request: Request, env: Env, ctx: ExecutionConte
   return null;
 }
 
+async function handleShortlistRoutes(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  url: URL
+): Promise<Response | null> {
+  if (!url.pathname.startsWith("/api/shortlist")) return null;
+
+  if (url.pathname === "/api/shortlist" && request.method === "GET") {
+    const items = await listShortlist(env.DB);
+    return jsonResponse({ items });
+  }
+
+  if (url.pathname === "/api/shortlist" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const opportunityId = typeof body?.opportunityId === "string" ? body.opportunityId.trim() : "";
+    const source = typeof body?.source === "string" ? body.source.trim() : "";
+    if (!opportunityId || !source) {
+      return jsonResponse({ error: "Missing opportunityId or source" }, 400);
+    }
+    const result = await addShortlist(env.DB, opportunityId, source);
+    return jsonResponse({ id: result.id, created: result.created }, 201);
+  }
+
+  if (url.pathname === "/api/shortlist/remove" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const shortlistId = typeof body?.shortlistId === "string" ? body.shortlistId.trim() : "";
+    const opportunityId = typeof body?.opportunityId === "string" ? body.opportunityId.trim() : "";
+    const source = typeof body?.source === "string" ? body.source.trim() : "";
+    let removed = false;
+    if (shortlistId) {
+      removed = await removeShortlist(env.DB, shortlistId);
+    } else if (opportunityId && source) {
+      removed = await removeShortlistByOpportunity(env.DB, opportunityId, source);
+    } else {
+      return jsonResponse({ error: "Missing shortlistId or opportunityId/source" }, 400);
+    }
+    return jsonResponse({ removed });
+  }
+
+  if (url.pathname === "/api/shortlist/analyze" && request.method === "POST") {
+    const body = await request.json().catch(() => null);
+    const shortlistIds = Array.isArray(body?.shortlistIds)
+      ? body.shortlistIds.filter((id: unknown) => typeof id === "string")
+      : undefined;
+    ctx.waitUntil(runShortlistAnalysis(env, ctx, shortlistIds));
+    return jsonResponse({ status: "started" }, 202);
+  }
+
+  return null;
+}
+
 async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
   const sources = [syncGrantsGov, syncSamGov, syncHrsa];
   const pdfJobs: PdfJob[] = [];
@@ -272,6 +332,44 @@ async function syncAndStoreSource(
     await updateFundingSourceSync(env.DB, source.id, { status: "failed", error: message });
     console.error("source sync failed", source.id, error);
   }
+}
+
+async function runShortlistAnalysis(
+  env: Env,
+  ctx: ExecutionContext,
+  shortlistIds?: string[]
+): Promise<void> {
+  const candidates = await listShortlistForAnalysis(env.DB, shortlistIds);
+  let analyzed = 0;
+  let failed = 0;
+
+  for (const candidate of candidates) {
+    const sections = candidate.sectionMap ?? {
+      programDescription: null,
+      requirements: null,
+      evaluationCriteria: null
+    };
+    const fallbackText = [candidate.textExcerpt, candidate.summary, candidate.eligibility].filter(Boolean).join(" ");
+    if (!fallbackText) {
+      failed += 1;
+      continue;
+    }
+
+    try {
+      const analysis = await analyzeFeasibility(env, candidate.title, sections, fallbackText);
+      await insertAnalysis(env.DB, candidate.opportunityId, candidate.source, analysis);
+      await indexOpportunity(env, candidate.opportunityId, candidate.source, fallbackText, {
+        opportunityId: candidate.opportunityId,
+        source: candidate.source
+      });
+      analyzed += 1;
+    } catch (error) {
+      console.error("shortlist analysis failed", candidate.opportunityId, error);
+      failed += 1;
+    }
+  }
+
+  ctx.waitUntil(Promise.resolve({ analyzed, failed }));
 }
 
 async function processPdfJob(env: Env, ctx: ExecutionContext, job: PdfJob): Promise<void> {
