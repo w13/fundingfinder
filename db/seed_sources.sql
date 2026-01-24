@@ -53,7 +53,7 @@ INSERT INTO funding_sources (
   ("etenders_za", "National Treasury eTenders", "South Africa", "https://etenders.treasury.gov.za/", "manual_url", NULL, 0, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("d2b_kr", "DAPA-FPBIS", "South Korea", "https://www.d2b.go.kr/", "manual_url", NULL, 1, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("pps_kr", "Public Procurement Service", "South Korea", "https://www.pps.go.kr/eng/index.do", "manual_url", NULL, 5648, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
-  ("worldbank", "The World Bank", "Multilateral", "https://www.worldbank.org/", "manual_url", NULL, 499, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
+  ("worldbank", "The World Bank", "Multilateral", "https://www.worldbank.org/", "core_api", NULL, 499, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("marchespublics_tn", "Observatoire National des Marches Publics", "Tunisia", "http://www.marchespublics.gov.tn/onmp/content/index.php?lang=fr", "manual_url", NULL, 0, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("contracts_finder_uk", "Contracts Finder", "United Kingdom", "https://www.contractsfinder.service.gov.uk/", "manual_url", NULL, 777, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),
   ("prozorro_ua", "Prozorro", "Ukraine", "https://prozorro.gov.ua", "manual_url", NULL, 134483, 0, NULL, NULL, NULL, 0, datetime('now'), datetime('now')),

@@ -1,5 +1,6 @@
 import type { NormalizedInput } from "../normalize/opportunity";
 import type { SourceDefinition } from "./types";
+import { toNullableString, toString } from "../connectors/mappingUtils";
 
 export const hrsaDefinition: SourceDefinition = {
   id: "hrsa",
@@ -37,15 +38,4 @@ export function extractHrsaDocuments(raw: Record<string, unknown>): string[] {
     }
   }
   return urls;
-}
-
-function toString(value: unknown): string | null {
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.trim();
-  }
-  return null;
-}
-
-function toNullableString(value: unknown): string | null {
-  return toString(value);
 }

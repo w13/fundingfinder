@@ -23,3 +23,13 @@ export function getApiBaseUrl(): string {
   // Fallback to default
   return DEFAULT_API_URL;
 }
+
+export function getAuthHeaders(): HeadersInit {
+  if (typeof process !== 'undefined' && process.env) {
+    const key = process.env.ADMIN_API_KEY ?? process.env.GRANT_SENTINEL_ADMIN_KEY;
+    if (key) {
+      return { "Authorization": `Bearer ${key}` };
+    }
+  }
+  return {};
+}

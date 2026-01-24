@@ -45,6 +45,13 @@ export function slugify(value: string): string {
     .slice(0, 80);
 }
 
+export function normalizeDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const parsed = new Date(dateStr);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 export function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

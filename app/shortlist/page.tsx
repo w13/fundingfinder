@@ -24,26 +24,29 @@ export default async function ShortlistPage() {
   return (
     <div className="grid">
       <section className="hero">
-        <h2 className="hero__title">Shortlist</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
+          <div>
+            <h2 className="hero__title" style={{ margin: 0, marginBottom: "8px" }}>AI Analysis</h2>
+            <p className="hero__subtitle" style={{ margin: 0 }}>Analyze and score shortlisted opportunities</p>
+          </div>
+          <form action={handleAnalyze} style={{ margin: 0 }}>
+            <button className="button" type="submit">
+              Analyze shortlist
+            </button>
+          </form>
+        </div>
         {warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e" }}>
+          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", padding: "12px 16px", marginBottom: "24px" }}>
             {warning}
           </div>
         ) : null}
       </section>
 
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Shortlisted grants</h3>
-          <p className="muted" style={{ margin: "6px 0 0" }}>
-            {items.length} opportunities ready for analysis.
-          </p>
-        </div>
-        <form action={handleAnalyze}>
-          <button className="button" type="submit">
-            Analyze shortlist
-          </button>
-        </form>
+      <div className="card" style={{ marginBottom: "24px" }}>
+        <h3 style={{ margin: 0, marginBottom: "8px" }}>Shortlisted grants</h3>
+        <p className="muted" style={{ margin: 0 }}>
+          {items.length} opportunities ready for analysis.
+        </p>
       </div>
 
       {items.length === 0 ? (

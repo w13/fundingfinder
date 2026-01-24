@@ -122,139 +122,56 @@ export default async function SourcesPage({ searchParams }: PageProps) {
   return (
     <div className="grid">
       <section className="hero">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
-          <h2 className="hero__title" style={{ margin: 0 }}>Sources</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
+          <div>
+            <h2 className="hero__title" style={{ margin: 0, marginBottom: "8px" }}>Sources</h2>
+            <p className="hero__subtitle" style={{ margin: 0 }}>Manage and monitor funding source integrations</p>
+          </div>
           <form action={handleSyncAll} style={{ margin: 0 }}>
-            <button className="button" type="submit" style={{ padding: "8px 16px", fontSize: "14px" }}>
+            <button className="button" type="submit">
               Sync All Sources
             </button>
           </form>
         </div>
         {sourcesResult.warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginTop: "12px" }}>
+          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", padding: "12px 16px", marginBottom: "24px" }}>
             {sourcesResult.warning}
           </div>
         ) : null}
       </section>
 
       {/* Overview Stats */}
-      <div className="grid grid-3" style={{ gap: "8px", marginBottom: "16px" }}>
-        <div className="card">
-          <p className="muted">Total opportunities</p>
-          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
+      <div className="grid grid-3" style={{ marginBottom: "24px", gap: "8px" }}>
+        <div className="card" style={{ padding: "12px 16px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total opportunities</p>
+          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
         </div>
-        <div className="card">
-          <p className="muted">For-profit eligible</p>
-          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
+        <div className="card" style={{ padding: "12px 16px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>For-profit eligible</p>
+          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
         </div>
-        <div className="card">
-          <p className="muted">Analyzed w/ AI</p>
-          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
+        <div className="card" style={{ padding: "12px 16px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Analyzed w/ AI</p>
+          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
         </div>
-        <div className="card">
-          <p className="muted">High feasibility</p>
-          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
+        <div className="card" style={{ padding: "12px 16px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>High feasibility</p>
+          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
         </div>
-        <div className="card">
-          <p className="muted">Last update</p>
-          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
+        <div className="card" style={{ padding: "12px 16px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Last update</p>
+          <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
         </div>
-        <div className="card">
-          <p className="muted">Active sources</p>
-          <h3 style={{ margin: "4px 0 0" }}>{sources.filter(s => s.active).length}</h3>
+        <div className="card" style={{ padding: "12px 16px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active sources</p>
+          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{sources.filter(s => s.active).length}</h3>
         </div>
       </div>
 
       {/* High-signal opportunities */}
-      <div className="card" style={{ marginBottom: "16px" }}>
-        <h3 style={{ marginTop: 0 }}>High-signal opportunities</h3>
+      <div className="card" style={{ marginBottom: "24px" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "16px" }}>High-signal opportunities</h3>
         <OpportunityList items={highSignal.items} />
-      </div>
-
-      {/* Filters/Exclusions */}
-      <div className="card" style={{ marginBottom: "16px" }}>
-        <h3 style={{ marginTop: 0 }}>Filters</h3>
-        {exclusionsResult.warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginBottom: "12px" }}>
-            {exclusionsResult.warning}
-          </div>
-        ) : null}
-        <div className="grid grid-2" style={{ gap: "12px", marginBottom: "12px" }}>
-          <div>
-            <h4 style={{ marginTop: 0, marginBottom: "8px", fontSize: "14px" }}>Add Filter</h4>
-            <form className="grid" action={handleAddRule} style={{ gap: "8px" }}>
-              <label style={{ display: "grid", gap: "4px" }}>
-                <span className="pill" style={{ fontSize: "11px", padding: "4px 8px" }}>Filter type</span>
-                <select className="select" name="ruleType" defaultValue="excluded_bureau" style={{ padding: "8px 10px", fontSize: "13px" }}>
-                  <option value="excluded_bureau">Exclude bureau/agency</option>
-                  <option value="priority_agency">Priority agency</option>
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: "4px" }}>
-                <span className="pill" style={{ fontSize: "11px", padding: "4px 8px" }}>Value</span>
-                <input className="input" name="value" placeholder="e.g. USDA, Forestry" style={{ padding: "8px 10px", fontSize: "13px" }} />
-              </label>
-              <button className="button" type="submit" style={{ padding: "8px 14px", fontSize: "13px" }}>
-                Add Filter
-              </button>
-            </form>
-          </div>
-          <div>
-            <h4 style={{ marginTop: 0, marginBottom: "8px", fontSize: "14px" }}>Active Filters</h4>
-            {exclusionsResult.rules.length ? (
-              <table className="table" style={{ margin: 0 }}>
-                <thead>
-                  <tr>
-                    <th style={{ padding: "8px", fontSize: "12px" }}>Type</th>
-                    <th style={{ padding: "8px", fontSize: "12px" }}>Value</th>
-                    <th style={{ padding: "8px", fontSize: "12px" }}>Created</th>
-                    <th style={{ padding: "8px", fontSize: "12px" }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {exclusionsResult.rules.map((rule) => (
-                    <tr key={rule.id}>
-                      <td style={{ padding: "8px", fontSize: "12px" }}>{rule.ruleType === "excluded_bureau" ? "Exclude bureau" : "Priority agency"}</td>
-                      <td style={{ padding: "8px", fontSize: "12px" }}>{rule.value}</td>
-                      <td style={{ padding: "8px", fontSize: "12px" }}>{rule.createdAt}</td>
-                      <td style={{ padding: "8px", fontSize: "12px" }}>
-                        <form action={handleDisableRule} style={{ margin: 0, display: "inline-block" }}>
-                          <input type="hidden" name="id" value={rule.id} />
-                          <button className="button button--secondary" type="submit" style={{ padding: "4px 8px", fontSize: "11px" }}>
-                            Disable
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="muted" style={{ fontSize: "13px" }}>No filters configured.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Settings */}
-      <div className="card" style={{ marginBottom: "16px" }}>
-        <h3 style={{ marginTop: 0 }}>Settings</h3>
-        <div className="grid grid-2" style={{ gap: "12px" }}>
-          <div>
-            <p className="muted" style={{ fontSize: "12px", marginBottom: "8px" }}>Worker API</p>
-            <p style={{ margin: 0, fontSize: "13px" }}>
-              {typeof process !== 'undefined' && process.env
-                ? (process.env.GRANT_SENTINEL_API_URL ?? process.env.NEXT_PUBLIC_GRANT_SENTINEL_API_URL ?? 'https://grant-sentinel.wakas.workers.dev')
-                : 'https://grant-sentinel.wakas.workers.dev'}
-            </p>
-          </div>
-          <div>
-            <p className="muted" style={{ fontSize: "12px", marginBottom: "8px" }}>Secrets</p>
-            <p style={{ margin: 0, fontSize: "13px" }}>
-              Configure API keys, webhook URLs, and company profile via Wrangler secrets.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Sources Table */}
@@ -263,10 +180,10 @@ export default async function SourcesPage({ searchParams }: PageProps) {
           <table className="table" style={{ margin: 0 }}>
             <thead>
               <tr>
-                <th style={{ width: "40px", padding: "12px 8px" }}></th>
+                <th style={{ padding: "12px 16px", textAlign: "center", width: "120px" }}>Enable</th>
                 <th style={{ padding: "12px 16px", textAlign: "left" }}>Source</th>
                 <th style={{ padding: "12px 16px", textAlign: "left" }}>Status</th>
-                <th style={{ padding: "12px 16px", textAlign: "left" }}>Last Sync</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", width: "140px" }}>Last Sync</th>
                 <th style={{ padding: "12px 16px", textAlign: "right" }}>Ingested</th>
                 <th style={{ padding: "12px 16px", textAlign: "left" }}>Type</th>
                 <th style={{ padding: "12px 16px", textAlign: "center", width: "120px" }}>Actions</th>
@@ -300,6 +217,91 @@ export default async function SourcesPage({ searchParams }: PageProps) {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Filters/Exclusions */}
+      <div className="card" style={{ marginTop: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+          <div>
+            <h3 style={{ margin: 0, marginBottom: "4px" }}>Filters</h3>
+            <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
+              Configure inclusion and exclusion rules for opportunity filtering
+            </p>
+          </div>
+        </div>
+        
+        {exclusionsResult.warning ? (
+          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginBottom: "20px", padding: "12px 16px" }}>
+            {exclusionsResult.warning}
+          </div>
+        ) : null}
+
+        <div className="grid grid-2" style={{ marginBottom: "20px" }}>
+          <div>
+            <h4 style={{ margin: 0, marginBottom: "12px", fontSize: "14px", fontWeight: 600 }}>Add New Filter</h4>
+            <form className="grid" action={handleAddRule} style={{ gap: "12px" }}>
+              <label style={{ display: "grid", gap: "8px" }}>
+                <span className="pill" style={{ fontSize: "11px" }}>Filter Type</span>
+                <select className="select" name="ruleType" defaultValue="excluded_bureau">
+                  <option value="excluded_bureau">Exclude bureau/agency</option>
+                  <option value="priority_agency">Priority agency</option>
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: "8px" }}>
+                <span className="pill" style={{ fontSize: "11px" }}>Agency/Bureau Name</span>
+                <input className="input" name="value" placeholder="e.g. USDA, Forestry, NIH" />
+              </label>
+              <button className="button" type="submit">
+                Add Filter
+              </button>
+            </form>
+          </div>
+          <div>
+            <h4 style={{ margin: 0, marginBottom: "12px", fontSize: "14px", fontWeight: 600 }}>Active Filters</h4>
+            {exclusionsResult.rules.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {exclusionsResult.rules.map((rule) => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 12px",
+                      background: "#f8fafc",
+                      border: "1px solid var(--border-light)",
+                      borderRadius: "0"
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "2px" }}>
+                        {rule.ruleType === "excluded_bureau" ? "Exclude" : "Priority"}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                        {rule.value}
+                      </div>
+                    </div>
+                    <form action={handleDisableRule} style={{ margin: 0 }}>
+                      <input type="hidden" name="id" value={rule.id} />
+                      <button
+                        className="button button--secondary button--small"
+                        type="submit"
+                        style={{ padding: "4px 10px" }}
+                      >
+                        Remove
+                      </button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: "20px", textAlign: "center", background: "#f8fafc", border: "1px solid var(--border-light)" }}>
+                <p className="muted" style={{ margin: 0, fontSize: "13px" }}>No filters configured</p>
+                <p className="muted" style={{ margin: "4px 0 0", fontSize: "12px" }}>Add filters to customize opportunity matching</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

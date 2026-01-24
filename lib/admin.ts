@@ -1,5 +1,5 @@
 import type { AdminSummary, ExclusionRule, FundingSource } from "./types";
-import { getApiBaseUrl } from "./constants";
+import { getApiBaseUrl, getAuthHeaders } from "./constants";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -8,7 +8,10 @@ export async function fetchAdminSummary(): Promise<{ summary: AdminSummary | nul
     return { summary: null, warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
   try {
-    const response = await fetch(new URL("/api/admin/summary", API_BASE_URL), { cache: "no-store" });
+    const response = await fetch(new URL("/api/admin/summary", API_BASE_URL), {
+      cache: "no-store",
+      headers: getAuthHeaders()
+    });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       return { summary: null, warning: `API error ${response.status}: ${errorText || "Unknown error"}` };
@@ -25,7 +28,10 @@ export async function fetchExclusionRules(): Promise<{ rules: ExclusionRule[]; w
     return { rules: [], warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
   try {
-    const response = await fetch(new URL("/api/admin/exclusions", API_BASE_URL), { cache: "no-store" });
+    const response = await fetch(new URL("/api/admin/exclusions", API_BASE_URL), {
+      cache: "no-store",
+      headers: getAuthHeaders()
+    });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       return { rules: [], warning: `API error ${response.status}: ${errorText || "Unknown error"}` };
@@ -42,7 +48,10 @@ export async function fetchFundingSources(): Promise<{ sources: FundingSource[];
     return { sources: [], warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
   try {
-    const response = await fetch(new URL("/api/admin/sources", API_BASE_URL), { cache: "no-store" });
+    const response = await fetch(new URL("/api/admin/sources", API_BASE_URL), {
+      cache: "no-store",
+      headers: getAuthHeaders()
+    });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       return { sources: [], warning: `API error ${response.status}: ${errorText || "Unknown error"}` };
@@ -61,7 +70,10 @@ export async function syncFundingSource(
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL(`/api/admin/sources/${id}/sync`, API_BASE_URL), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
     body: JSON.stringify(payload)
   });
   return response.ok;
@@ -74,7 +86,10 @@ export async function updateFundingSource(
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL(`/api/admin/sources/${id}`, API_BASE_URL), {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
     body: JSON.stringify(payload)
   });
   return response.ok;
@@ -84,7 +99,10 @@ export async function createExclusionRule(ruleType: ExclusionRule["ruleType"], v
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL("/api/admin/exclusions", API_BASE_URL), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
     body: JSON.stringify({ ruleType, value })
   });
   return response.ok;
@@ -93,7 +111,8 @@ export async function createExclusionRule(ruleType: ExclusionRule["ruleType"], v
 export async function disableExclusionRule(id: string): Promise<boolean> {
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL(`/api/admin/exclusions/${id}`, API_BASE_URL), {
-    method: "DELETE"
+    method: "DELETE",
+    headers: getAuthHeaders()
   });
   return response.ok;
 }
@@ -101,7 +120,8 @@ export async function disableExclusionRule(id: string): Promise<boolean> {
 export async function triggerIngestionSync(): Promise<boolean> {
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL("/api/admin/run-sync", API_BASE_URL), {
-    method: "POST"
+    method: "POST",
+    headers: getAuthHeaders()
   });
   return response.ok;
 }

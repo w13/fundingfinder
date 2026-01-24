@@ -1,7 +1,7 @@
 import type { AgencyFilters, EligibilityResult } from "../filters";
 import { agencyPriorityBoost, evaluateEligibility, isAgencyExcluded, scoreKeywords } from "../filters";
 import type { OpportunityRecord, SourceSystem } from "../types";
-import { hashPayload, hashText, normalizeText } from "../utils";
+import { hashPayload, hashText, normalizeDate, normalizeText } from "../utils";
 
 export interface NormalizedInput {
   source: SourceSystem;
@@ -47,8 +47,8 @@ export async function buildOpportunityRecord(input: NormalizedInput, filters: Ag
     forProfitEligible: eligibility.forProfitEligible,
     smallBusinessEligible: eligibility.smallBusinessEligible,
     keywordScore,
-    postedDate: input.postedDate ? normalizeText(input.postedDate) : null,
-    dueDate: input.dueDate ? normalizeText(input.dueDate) : null,
+    postedDate: normalizeDate(input.postedDate),
+    dueDate: normalizeDate(input.dueDate),
     url: input.url ? normalizeText(input.url) : null,
     version: 1,
     versionHash,

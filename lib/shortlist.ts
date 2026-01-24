@@ -1,5 +1,5 @@
 import type { ShortlistItem } from "./types";
-import { getApiBaseUrl } from "./constants";
+import { getApiBaseUrl, getAuthHeaders } from "./constants";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -19,7 +19,10 @@ export async function addShortlist(opportunityId: string, source: string): Promi
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL("/api/shortlist", API_BASE_URL), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
     body: JSON.stringify({ opportunityId, source })
   });
   return response.ok;
@@ -29,7 +32,10 @@ export async function removeShortlist(shortlistId: string): Promise<boolean> {
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL("/api/shortlist/remove", API_BASE_URL), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
     body: JSON.stringify({ shortlistId })
   });
   return response.ok;
@@ -39,7 +45,10 @@ export async function analyzeShortlist(shortlistIds?: string[]): Promise<boolean
   if (!API_BASE_URL) return false;
   const response = await fetch(new URL("/api/shortlist/analyze", API_BASE_URL), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
     body: JSON.stringify({ shortlistIds })
   });
   return response.ok;

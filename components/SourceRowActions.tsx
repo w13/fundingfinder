@@ -36,19 +36,16 @@ export default function SourceRowActions({
       <form action={syncAction} onSubmit={handleSync} style={{ margin: 0 }}>
         <input type="hidden" name="sourceId" value={sourceId} />
         <button
-          className="button"
+          className="button button--small"
           type="submit"
           disabled={isSyncing}
           style={{
-            padding: "6px 12px",
-            fontSize: "12px",
             whiteSpace: "nowrap",
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
             opacity: isSyncing ? 0.6 : 1,
-            cursor: isSyncing ? "not-allowed" : "pointer",
-            transition: "opacity 0.2s ease"
+            cursor: isSyncing ? "not-allowed" : "pointer"
           }}
           title="Sync this source now"
         >
@@ -99,7 +96,7 @@ export default function SourceRowActions({
               display: "inline-block",
               width: "44px",
               height: "24px",
-              borderRadius: "12px",
+              borderRadius: "0",
               backgroundColor: active ? "var(--primary)" : "#cbd5e1",
               position: "relative",
               transition: "background-color 0.2s ease"
@@ -110,12 +107,12 @@ export default function SourceRowActions({
                 position: "absolute",
                 width: "18px",
                 height: "18px",
-                borderRadius: "50%",
+                borderRadius: "0",
                 background: "white",
                 top: "3px",
                 left: active ? "23px" : "3px",
                 transition: "left 0.2s ease",
-                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)"
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.2)"
               }}
             />
           </span>

@@ -8,8 +8,8 @@ type SearchFormProps = {
 
 export default function SearchForm({ query, source, minScore, mode = "smart", sources = [] }: SearchFormProps) {
   return (
-    <form method="get" action="/" className="card card--flat grid search-form">
-      <label style={{ display: "grid", gap: "6px" }}>
+    <form method="get" action="/" className="card card--flat grid search-form" style={{ marginBottom: "24px" }}>
+      <label style={{ display: "grid", gap: "8px" }}>
         <span className="pill">Keyword search</span>
         <input
           className="input"
@@ -18,7 +18,7 @@ export default function SearchForm({ query, source, minScore, mode = "smart", so
           placeholder="digital therapeutics, clinical decision support"
         />
       </label>
-      <label style={{ display: "grid", gap: "6px" }}>
+      <label style={{ display: "grid", gap: "8px" }}>
         <span className="pill">Source</span>
         <input
           className="input"
@@ -35,11 +35,11 @@ export default function SearchForm({ query, source, minScore, mode = "smart", so
           ))}
         </datalist>
       </label>
-      <label style={{ display: "grid", gap: "6px" }}>
+      <label style={{ display: "grid", gap: "8px" }}>
         <span className="pill">Min feasibility</span>
         <input className="input" name="minScore" defaultValue={minScore} placeholder="80" />
       </label>
-      <label style={{ display: "grid", gap: "6px" }}>
+      <label style={{ display: "grid", gap: "8px" }}>
         <span className="pill">Search mode</span>
         <select className="select" name="mode" defaultValue={mode}>
           <option value="smart">Smart (all terms)</option>
@@ -47,7 +47,7 @@ export default function SearchForm({ query, source, minScore, mode = "smart", so
           <option value="exact">Exact phrase</option>
         </select>
       </label>
-      <button type="submit" className="button">
+      <button type="submit" className="button" style={{ alignSelf: "end" }}>
         Search
       </button>
     </form>
