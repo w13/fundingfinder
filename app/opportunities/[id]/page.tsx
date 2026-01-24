@@ -7,30 +7,35 @@ export default async function OpportunityPage({ params }: { params: { id: string
 
   if (!item) {
     return (
-      <div>
+      <div className="card">
         <p>Opportunity not found.</p>
-        <Link href="/">Back to dashboard</Link>
+        <Link href="/" style={{ color: "var(--primary)" }}>
+          Back to dashboard
+        </Link>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "grid", gap: "20px" }}>
-      <Link href="/" style={{ color: "#1d4ed8" }}>
+    <div className="grid">
+      <Link href="/" style={{ color: "var(--primary)" }}>
         ← Back to dashboard
       </Link>
-      <div style={{ display: "grid", gap: "8px" }}>
+      <div className="card">
+        <p className="pill" style={{ marginBottom: "8px" }}>
+          {item.source.replace("_", ".")}
+        </p>
         <h2 style={{ margin: 0 }}>{item.title}</h2>
-        <p style={{ margin: 0, color: "#475569" }}>
+        <p className="muted" style={{ margin: "6px 0 0" }}>
           {item.agency ?? "Unknown agency"} · {item.source.replace("_", ".")}
         </p>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
           <ScoreBadge label="Feasibility" value={item.feasibilityScore} />
           <ScoreBadge label="Profitability" value={item.profitabilityScore} />
         </div>
       </div>
 
-      <section style={{ display: "grid", gap: "8px" }}>
+      <section className="card">
         <h3 style={{ margin: 0 }}>AI Feasibility Summary</h3>
         {item.analysisSummary.length > 0 ? (
           <ul>
@@ -39,11 +44,13 @@ export default async function OpportunityPage({ params }: { params: { id: string
             ))}
           </ul>
         ) : (
-          <p style={{ margin: 0, color: "#475569" }}>No AI summary available yet.</p>
+          <p className="muted" style={{ margin: 0 }}>
+            No AI summary available yet.
+          </p>
         )}
       </section>
 
-      <section style={{ display: "grid", gap: "8px" }}>
+      <section className="card">
         <h3 style={{ margin: 0 }}>Key Constraints</h3>
         {item.constraints.length > 0 ? (
           <ul>
@@ -52,31 +59,35 @@ export default async function OpportunityPage({ params }: { params: { id: string
             ))}
           </ul>
         ) : (
-          <p style={{ margin: 0, color: "#475569" }}>No constraints captured.</p>
+          <p className="muted" style={{ margin: 0 }}>
+            No constraints captured.
+          </p>
         )}
       </section>
 
-      <section style={{ display: "grid", gap: "8px" }}>
+      <section className="card">
         <h3 style={{ margin: 0 }}>Eligibility</h3>
-        <p style={{ margin: 0, color: "#475569" }}>{item.eligibility ?? "Not provided."}</p>
-        <div style={{ display: "flex", gap: "12px", fontSize: "12px", color: "#475569" }}>
+        <p className="muted" style={{ margin: 0 }}>
+          {item.eligibility ?? "Not provided."}
+        </p>
+        <div style={{ display: "flex", gap: "12px", fontSize: "12px", color: "#64748b", flexWrap: "wrap" }}>
           <span>For-profit: {item.forProfitEligible ? "Yes" : "No"}</span>
           <span>Small business: {item.smallBusinessEligible ? "Yes" : "No"}</span>
         </div>
       </section>
 
-      <section style={{ display: "grid", gap: "8px" }}>
+      <section className="card">
         <h3 style={{ margin: 0 }}>Documents</h3>
         {item.documents.length > 0 ? (
-          <div style={{ display: "grid", gap: "12px" }}>
+          <div className="grid">
             {item.documents.map((doc) => (
-              <div key={doc.id} style={{ padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px" }}>
-                <div style={{ fontSize: "12px", color: "#475569" }}>R2 key: {doc.r2Key}</div>
-                <a href={doc.documentUrl} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8" }}>
+              <div key={doc.id} className="card card--flat" style={{ padding: "16px" }}>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>R2 key: {doc.r2Key}</div>
+                <a href={doc.documentUrl} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
                   View source PDF
                 </a>
                 {doc.sectionMap ? (
-                  <ul style={{ margin: "8px 0 0", color: "#475569" }}>
+                  <ul style={{ margin: "8px 0 0", color: "#64748b" }}>
                     <li>Program: {doc.sectionMap.programDescription ? "Captured" : "Missing"}</li>
                     <li>Requirements: {doc.sectionMap.requirements ? "Captured" : "Missing"}</li>
                     <li>Evaluation: {doc.sectionMap.evaluationCriteria ? "Captured" : "Missing"}</li>
@@ -86,14 +97,16 @@ export default async function OpportunityPage({ params }: { params: { id: string
             ))}
           </div>
         ) : (
-          <p style={{ margin: 0, color: "#475569" }}>No documents stored yet.</p>
+          <p className="muted" style={{ margin: 0 }}>
+            No documents stored yet.
+          </p>
         )}
       </section>
 
       {item.url ? (
-        <section style={{ display: "grid", gap: "8px" }}>
+        <section className="card">
           <h3 style={{ margin: 0 }}>Official Listing</h3>
-          <a href={item.url} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8" }}>
+          <a href={item.url} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
             {item.url}
           </a>
         </section>

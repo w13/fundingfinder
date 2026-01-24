@@ -36,3 +36,27 @@ export type OpportunitySearchResponse = {
   items: Opportunity[];
   warning?: string;
 };
+
+export type SourceSummary = {
+  source: string;
+  total: number;
+  forProfitEligible: number;
+  lastUpdated: string | null;
+};
+
+export type AdminSummary = {
+  totalOpportunities: number;
+  forProfitEligible: number;
+  analyzed: number;
+  highFeasibility: number;
+  lastUpdated: string | null;
+  sources: SourceSummary[];
+};
+
+export type ExclusionRule = {
+  id: string;
+  ruleType: "excluded_bureau" | "priority_agency";
+  value: string;
+  active: boolean;
+  createdAt: string;
+};

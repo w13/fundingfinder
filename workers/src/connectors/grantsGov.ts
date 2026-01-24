@@ -1,14 +1,18 @@
-import type { Env, OpportunityRecord, PdfJob, SourceSystem } from "../types";
+import type { Env, ExclusionRule, OpportunityRecord, PdfJob, SourceSystem } from "../types";
 import { evaluateEligibility, scoreKeywords, buildAgencyFilters, isAgencyExcluded, agencyPriorityBoost } from "../filters";
 import { hashPayload, normalizeText } from "../utils";
 import { politeFetch } from "./http";
 
 const SOURCE: SourceSystem = "grants_gov";
 
-export async function syncGrantsGov(env: Env, ctx: ExecutionContext): Promise<{ records: OpportunityRecord[]; pdfJobs: PdfJob[] }> {
+export async function syncGrantsGov(
+  env: Env,
+  ctx: ExecutionContext,
+  rules: ExclusionRule[] = []
+): Promise<{ records: OpportunityRecord[]; pdfJobs: PdfJob[] }> {
   const now = new Date();
   const startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const filters = buildAgencyFilters(env.EXCLUDED_BUREAUS, env.PRIORITY_AGENCIES);
+  const filters = buildAgencyFilters(env.EXCLUDED_BUREAUS, env.PRIORITY_AGENCIES, rules);
 
   const payload = {
     startDate: startDate.toISOString().slice(0, 10),

@@ -1,12 +1,16 @@
-import type { Env, OpportunityRecord, PdfJob, SourceSystem } from "../types";
+import type { Env, ExclusionRule, OpportunityRecord, PdfJob, SourceSystem } from "../types";
 import { buildAgencyFilters, evaluateEligibility, isAgencyExcluded, agencyPriorityBoost, scoreKeywords } from "../filters";
 import { hashPayload, normalizeText } from "../utils";
 import { politeFetch } from "./http";
 
 const SOURCE: SourceSystem = "hrsa";
 
-export async function syncHrsa(env: Env, ctx: ExecutionContext): Promise<{ records: OpportunityRecord[]; pdfJobs: PdfJob[] }> {
-  const filters = buildAgencyFilters(env.EXCLUDED_BUREAUS, env.PRIORITY_AGENCIES);
+export async function syncHrsa(
+  env: Env,
+  ctx: ExecutionContext,
+  rules: ExclusionRule[] = []
+): Promise<{ records: OpportunityRecord[]; pdfJobs: PdfJob[] }> {
+  const filters = buildAgencyFilters(env.EXCLUDED_BUREAUS, env.PRIORITY_AGENCIES, rules);
   const url = new URL("https://api.hrsa.gov/v1/grants");
   url.searchParams.set("postedWithinDays", "7");
 

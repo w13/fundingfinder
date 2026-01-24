@@ -1,3 +1,4 @@
+import type { ExclusionRule } from "./types";
 import { normalizeText, parseCsvList } from "./utils";
 
 const REQUIRED_TERMS = [
@@ -52,10 +53,23 @@ export interface AgencyFilters {
   priorityAgencies: string[];
 }
 
-export function buildAgencyFilters(excludedBureaus?: string, priorityAgencies?: string): AgencyFilters {
+export function buildAgencyFilters(excludedBureaus?: string, priorityAgencies?: string, rules: ExclusionRule[] = []): AgencyFilters {
+  const excluded = parseCsvList(excludedBureaus).map((item) => item.toLowerCase());
+  const priority = parseCsvList(priorityAgencies).map((item) => item.toLowerCase());
+
+  for (const rule of rules) {
+    if (!rule.active) continue;
+    if (rule.ruleType === "excluded_bureau") {
+      excluded.push(rule.value.toLowerCase());
+    }
+    if (rule.ruleType === "priority_agency") {
+      priority.push(rule.value.toLowerCase());
+    }
+  }
+
   return {
-    excludedBureaus: parseCsvList(excludedBureaus).map((item) => item.toLowerCase()),
-    priorityAgencies: parseCsvList(priorityAgencies).map((item) => item.toLowerCase())
+    excludedBureaus: Array.from(new Set(excluded)),
+    priorityAgencies: Array.from(new Set(priority))
   };
 }
 

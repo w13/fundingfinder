@@ -2,7 +2,17 @@ import type { Env, PdfJob } from "./types";
 import { syncGrantsGov } from "./connectors/grantsGov";
 import { syncSamGov } from "./connectors/samGov";
 import { syncHrsa } from "./connectors/hrsa";
-import { upsertOpportunity, listOpportunities, getOpportunityById, insertDocument, insertAnalysis } from "./db";
+import {
+  upsertOpportunity,
+  listOpportunities,
+  getOpportunityById,
+  insertDocument,
+  insertAnalysis,
+  listExclusionRules,
+  insertExclusionRule,
+  disableExclusionRule,
+  getAdminSummary
+} from "./db";
 import { resolvePdfLinks } from "./processing/browser";
 import { ingestPdf } from "./processing/pdf";
 import { analyzeFeasibility } from "./analysis/feasibility";
@@ -25,7 +35,7 @@ export default {
     }
   },
 
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
@@ -46,6 +56,50 @@ export default {
       return jsonResponse({ items });
     }
 
+    if (url.pathname === "/api/admin/summary" && request.method === "GET") {
+      const summary = await getAdminSummary(env.DB);
+      return jsonResponse({ summary });
+    }
+
+    if (url.pathname === "/api/admin/exclusions" && request.method === "GET") {
+      const activeOnly = url.searchParams.get("active") !== "false";
+      const rules = await listExclusionRules(env.DB, activeOnly);
+      return jsonResponse({ rules });
+    }
+
+    if (url.pathname === "/api/admin/exclusions" && request.method === "POST") {
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== "object") {
+        return jsonResponse({ error: "Invalid payload" }, 400);
+      }
+      const ruleType = (body as { ruleType?: string }).ruleType;
+      const value = (body as { value?: string }).value;
+      if (!ruleType || !value) {
+        return jsonResponse({ error: "Missing ruleType or value" }, 400);
+      }
+      const cleanedValue = String(value).trim();
+      if (!cleanedValue) {
+        return jsonResponse({ error: "Empty value" }, 400);
+      }
+      if (ruleType !== "excluded_bureau" && ruleType !== "priority_agency") {
+        return jsonResponse({ error: "Unsupported ruleType" }, 400);
+      }
+      const rule = await insertExclusionRule(env.DB, ruleType, cleanedValue);
+      return jsonResponse({ rule }, 201);
+    }
+
+    if (url.pathname.startsWith("/api/admin/exclusions/") && request.method === "DELETE") {
+      const id = url.pathname.split("/").pop();
+      if (!id) return jsonResponse({ error: "Missing rule id" }, 400);
+      const updated = await disableExclusionRule(env.DB, id);
+      return jsonResponse({ disabled: updated });
+    }
+
+    if (url.pathname === "/api/admin/run-sync" && request.method === "POST") {
+      ctx.waitUntil(runSync(env, ctx));
+      return jsonResponse({ status: "started" }, 202);
+    }
+
     if (url.pathname.startsWith("/api/opportunities/") && request.method === "GET") {
       const id = url.pathname.split("/").pop();
       if (!id) return jsonResponse({ error: "Missing id" }, 400);
@@ -62,9 +116,10 @@ async function runSync(env: Env, ctx: ExecutionContext): Promise<void> {
   const sources = [syncGrantsGov, syncSamGov, syncHrsa];
   const pdfJobs: PdfJob[] = [];
   const updated = new Map<string, boolean>();
+  const rules = await listExclusionRules(env.DB, true);
 
   for (const sourceSync of sources) {
-    const { records, pdfJobs: newJobs } = await sourceSync(env, ctx);
+    const { records, pdfJobs: newJobs } = await sourceSync(env, ctx, rules);
     for (const record of records) {
       const result = await upsertOpportunity(env.DB, record);
       updated.set(`${record.source}:${record.opportunityId}`, result.updated);

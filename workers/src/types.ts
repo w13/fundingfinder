@@ -43,6 +43,30 @@ export interface SectionSlices {
   evaluationCriteria: string | null;
 }
 
+export type ExclusionRuleType = "excluded_bureau" | "priority_agency";
+
+export interface ExclusionRule {
+  id: string;
+  ruleType: ExclusionRuleType;
+  value: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface AdminSummary {
+  totalOpportunities: number;
+  forProfitEligible: number;
+  analyzed: number;
+  highFeasibility: number;
+  lastUpdated: string | null;
+  sources: Array<{
+    source: SourceSystem;
+    total: number;
+    forProfitEligible: number;
+    lastUpdated: string | null;
+  }>;
+}
+
 export interface Env {
   DB: D1Database;
   PDF_BUCKET: R2Bucket;

@@ -12,32 +12,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-          <header
-            style={{
-              background: "#0f172a",
-              color: "#ffffff",
-              padding: "20px 32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between"
-            }}
-          >
-            <div>
-              <h1 style={{ margin: 0, fontSize: "20px" }}>Grant Sentinel</h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#cbd5f5" }}>
-                Private-sector grant intelligence for AI and digital health.
-              </p>
+          <header className="header">
+            <div className="container header__content">
+              <div className="header__brand">
+                <h1>Grant Sentinel</h1>
+                <p>Private-sector grant intelligence for AI and digital health.</p>
+              </div>
+              <nav className="header__nav">
+                <Link href="/">Dashboard</Link>
+                <Link href="/admin">Admin CP</Link>
+                <Link href="https://www.grants.gov">Grants.gov</Link>
+              </nav>
             </div>
-            <nav style={{ display: "flex", gap: "16px", fontSize: "14px" }}>
-              <Link href="/">Dashboard</Link>
-              <Link href="https://www.grants.gov">Grants.gov</Link>
-            </nav>
           </header>
-          <main style={{ flex: 1, padding: "32px", maxWidth: "1200px", width: "100%", margin: "0 auto" }}>
-            {children}
+          <main style={{ flex: 1, padding: "32px 0" }}>
+            <div className="container">{children}</div>
           </main>
-          <footer style={{ padding: "20px 32px", background: "#e2e8f0", color: "#475569", fontSize: "12px" }}>
-            <div>
+          <footer className="footer">
+            <div className="container">
               This product uses the Grants.gov API but is not endorsed or certified by the U.S. Department of Health and
               Human Services.
             </div>

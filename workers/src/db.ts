@@ -1,4 +1,4 @@
-import type { AnalysisResult, OpportunityRecord, SectionSlices, SourceSystem } from "./types";
+import type { AdminSummary, AnalysisResult, ExclusionRule, ExclusionRuleType, OpportunityRecord, SectionSlices, SourceSystem } from "./types";
 import { safeJsonParse } from "./utils";
 
 export interface OpportunityQuery {
@@ -324,4 +324,91 @@ export async function insertAnalysis(db: D1Database, opportunityId: string, sour
       new Date().toISOString()
     )
     .run();
+}
+
+export async function listExclusionRules(db: D1Database, activeOnly = true): Promise<ExclusionRule[]> {
+  const whereClause = activeOnly ? "WHERE active = 1" : "";
+  const results = await db
+    .prepare(
+      `SELECT id, rule_type as ruleType, value, active, created_at as createdAt
+       FROM exclusion_rules
+       ${whereClause}
+       ORDER BY created_at DESC`
+    )
+    .all<{ id: string; ruleType: ExclusionRuleType; value: string; active: number; createdAt: string }>();
+
+  return (
+    results.results?.map((rule) => ({
+      ...rule,
+      active: Boolean(rule.active)
+    })) ?? []
+  );
+}
+
+export async function insertExclusionRule(
+  db: D1Database,
+  ruleType: ExclusionRuleType,
+  value: string
+): Promise<ExclusionRule> {
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  await db
+    .prepare("INSERT INTO exclusion_rules (id, rule_type, value, active, created_at) VALUES (?, ?, ?, 1, ?)")
+    .bind(id, ruleType, value, createdAt)
+    .run();
+
+  return {
+    id,
+    ruleType,
+    value,
+    active: true,
+    createdAt
+  };
+}
+
+export async function disableExclusionRule(db: D1Database, id: string): Promise<boolean> {
+  const result = await db.prepare("UPDATE exclusion_rules SET active = 0 WHERE id = ?").bind(id).run();
+  return Boolean(result.meta?.changes);
+}
+
+export async function getAdminSummary(db: D1Database): Promise<AdminSummary> {
+  const totals = await db
+    .prepare(
+      `SELECT
+        COUNT(*) as total,
+        SUM(for_profit_eligible) as forProfitEligible,
+        MAX(updated_at) as lastUpdated
+      FROM opportunities`
+    )
+    .first<{ total: number | null; forProfitEligible: number | null; lastUpdated: string | null }>();
+
+  const analyses = await db
+    .prepare(
+      `SELECT
+        COUNT(DISTINCT opportunity_id || ':' || source) as analyzed,
+        COUNT(DISTINCT CASE WHEN feasibility_score >= 80 THEN opportunity_id || ':' || source END) as highFeasibility
+      FROM analyses`
+    )
+    .first<{ analyzed: number | null; highFeasibility: number | null }>();
+
+  const sources = await db
+    .prepare(
+      `SELECT
+        source,
+        COUNT(*) as total,
+        SUM(for_profit_eligible) as forProfitEligible,
+        MAX(updated_at) as lastUpdated
+      FROM opportunities
+      GROUP BY source`
+    )
+    .all<{ source: SourceSystem; total: number; forProfitEligible: number; lastUpdated: string | null }>();
+
+  return {
+    totalOpportunities: Number(totals?.total ?? 0),
+    forProfitEligible: Number(totals?.forProfitEligible ?? 0),
+    analyzed: Number(analyses?.analyzed ?? 0),
+    highFeasibility: Number(analyses?.highFeasibility ?? 0),
+    lastUpdated: totals?.lastUpdated ?? null,
+    sources: sources.results ?? []
+  };
 }

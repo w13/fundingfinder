@@ -7,6 +7,7 @@ export async function fetchOpportunities(params: {
   query?: string;
   source?: string;
   minScore?: string;
+  limit?: number;
 }): Promise<OpportunitySearchResponse> {
   if (!API_BASE_URL) {
     return {
@@ -19,6 +20,7 @@ export async function fetchOpportunities(params: {
   if (params.query) url.searchParams.set("query", params.query);
   if (params.source) url.searchParams.set("source", params.source);
   if (params.minScore) url.searchParams.set("minScore", params.minScore);
+  if (typeof params.limit === "number") url.searchParams.set("limit", params.limit.toString());
 
   const response = await fetch(url.toString(), { cache: "no-store" });
   if (!response.ok) {
