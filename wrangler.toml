@@ -1,0 +1,38 @@
+name = "grant-sentinel"
+main = "workers/src/index.ts"
+compatibility_date = "2026-01-24"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+COMPANY_PROFILE = "Private-sector digital health company focused on AI-driven clinical tooling."
+EXCLUDED_BUREAUS = "Forestry, Agriculture"
+PRIORITY_AGENCIES = "HHS, NIH, DoD, Defense Health Agency"
+POLITE_DELAY_MS = "400"
+TED_BULK_DOWNLOAD_URL = "https://ted.europa.eu/en/simap/xml-bulk-download"
+TED_MAX_NOTICES = "500"
+BULK_MAX_NOTICES = "500"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "grant_sentinel"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "grant-sentinel-pdfs"
+
+[[queues.producers]]
+binding = "PDF_QUEUE"
+queue = "grant-sentinel-pdf"
+
+[[queues.consumers]]
+queue = "grant-sentinel-pdf"
+max_batch_size = 5
+max_batch_timeout = 30
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "grant-sentinel-index"
+
+[triggers]
+crons = ["0 2 * * *"]

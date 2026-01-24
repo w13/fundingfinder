@@ -1,0 +1,40 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "Grant Sentinel: AI-native grant aggregator",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/w13/fundingfinder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/w13/fundingfinder/issues"
+  },
+  "homepage": "https://github.com/w13/fundingfinder#readme",
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "next": "^16.1.4",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260124.0",
+    "@types/node": "^25.0.10",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.60.0"
+  },
+  "private": true
+}
