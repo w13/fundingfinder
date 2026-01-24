@@ -78,11 +78,13 @@ async function handleOpportunities(request: Request, env: Env, url: URL): Promis
   const source = url.searchParams.get("source") ?? undefined;
   const minScore = toNumber(url.searchParams.get("minScore"));
   const limit = toNumber(url.searchParams.get("limit")) ?? 50;
+  const mode = url.searchParams.get("mode") ?? undefined;
   const items = await listOpportunities(env.DB, {
     query,
     source: source ?? undefined,
     minScore: minScore ?? undefined,
-    limit
+    limit,
+    mode: mode === "exact" || mode === "any" ? mode : "smart"
   });
   return jsonResponse({ items });
 }

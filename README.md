@@ -112,6 +112,21 @@ Source-specific parsing logic lives in `workers/src/sources/`. When a source for
 update or add a source definition file there instead of touching the database layer. The normalization pipeline
 (`workers/src/normalize/opportunity.ts`) handles consistent scoring and storage.
 
+## Search Improvements
+
+Search now uses D1 FTS5 for fast keyword lookup with ranked results. Modes:
+
+- `smart` (default): all terms must match
+- `any`: any term can match
+- `exact`: exact phrase
+
+After applying the schema changes, backfill the FTS table if you already have data:
+
+```sql
+INSERT INTO opportunities_fts (opportunity_id, source, title, summary, agency)
+SELECT opportunity_id, source, title, summary, agency FROM opportunities;
+```
+
 ## D1 Schema
 
 The D1 schema lives in `db/schema.sql` and includes:

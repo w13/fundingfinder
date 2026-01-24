@@ -12,12 +12,15 @@ export default async function Page({ searchParams }: PageProps) {
   const query = typeof searchParams?.q === "string" ? searchParams.q : "";
   const source = typeof searchParams?.source === "string" ? searchParams.source : "";
   const minScore = typeof searchParams?.minScore === "string" ? searchParams.minScore : "";
+  const rawMode = typeof searchParams?.mode === "string" ? searchParams.mode : "smart";
+  const resolvedMode = rawMode === "exact" || rawMode === "any" ? rawMode : "smart";
 
   const [{ items, warning }, sourcesResult, shortlistResult] = await Promise.all([
     fetchOpportunities({
       query: query || undefined,
       source: source || undefined,
-      minScore: minScore || undefined
+      minScore: minScore || undefined,
+      mode: resolvedMode
     }),
     fetchSourceOptions(),
     fetchShortlist()
@@ -64,7 +67,7 @@ export default async function Page({ searchParams }: PageProps) {
         </div>
       </section>
 
-      <SearchForm query={query} source={source} minScore={minScore} sources={sourcesResult.sources} />
+      <SearchForm query={query} source={source} minScore={minScore} mode={resolvedMode} sources={sourcesResult.sources} />
 
       <OpportunityList items={items} shortlistKeys={shortlistKeys} showShortlistActions />
     </div>

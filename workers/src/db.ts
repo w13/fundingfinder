@@ -16,6 +16,7 @@ export interface OpportunityQuery {
   source?: SourceSystem;
   minScore?: number;
   limit?: number;
+  mode?: "smart" | "exact" | "any";
 }
 
 export interface OpportunityListItem {
@@ -168,14 +169,15 @@ async function insertOpportunityVersion(db: D1Database, record: OpportunityRecor
 }
 
 export async function listOpportunities(db: D1Database, query: OpportunityQuery): Promise<OpportunityListItem[]> {
+  if (query.query) {
+    return listOpportunitiesFts(db, query);
+  }
+  return listOpportunitiesStandard(db, query);
+}
+
+async function listOpportunitiesStandard(db: D1Database, query: OpportunityQuery): Promise<OpportunityListItem[]> {
   const conditions: string[] = [];
   const params: Array<string | number> = [];
-
-  if (query.query) {
-    conditions.push("(lower(o.title) LIKE ? OR lower(o.summary) LIKE ? OR lower(o.agency) LIKE ?)");
-    const like = `%${query.query.toLowerCase()}%`;
-    params.push(like, like, like);
-  }
 
   if (query.source) {
     conditions.push("o.source = ?");
@@ -220,6 +222,78 @@ export async function listOpportunities(db: D1Database, query: OpportunityQuery)
 
   const results = await db.prepare(statement).bind(...params, limit).all<OpportunityListItem>();
   return results.results ?? [];
+}
+
+async function listOpportunitiesFts(db: D1Database, query: OpportunityQuery): Promise<OpportunityListItem[]> {
+  const ftsQuery = buildFtsQuery(query.query ?? "", query.mode ?? "smart");
+  if (!ftsQuery) {
+    return listOpportunitiesStandard(db, { ...query, query: undefined });
+  }
+
+  const conditions: string[] = ["f MATCH ?"];
+  const params: Array<string | number> = [ftsQuery];
+
+  if (query.source) {
+    conditions.push("o.source = ?");
+    params.push(query.source);
+  }
+
+  if (typeof query.minScore === "number") {
+    conditions.push("a.feasibility_score >= ?");
+    params.push(query.minScore);
+  }
+
+  const whereClause = `WHERE ${conditions.join(" AND ")}`;
+  const limit = query.limit ?? 50;
+
+  const statement = `
+    SELECT
+      o.id,
+      o.opportunity_id as opportunityId,
+      o.source,
+      o.title,
+      o.agency,
+      o.status,
+      o.summary,
+      o.posted_date as postedDate,
+      o.due_date as dueDate,
+      o.keyword_score as keywordScore,
+      a.feasibility_score as feasibilityScore,
+      a.suitability_score as suitabilityScore,
+      a.profitability_score as profitabilityScore,
+      bm25(f, 6.0, 3.0, 2.0) as rank
+    FROM opportunities_fts f
+    JOIN opportunities o
+      ON o.opportunity_id = f.opportunity_id AND o.source = f.source
+    LEFT JOIN analyses a
+      ON a.opportunity_id = o.opportunity_id
+      AND a.source = o.source
+      AND a.created_at = (
+        SELECT MAX(created_at) FROM analyses
+        WHERE opportunity_id = o.opportunity_id AND source = o.source
+      )
+    ${whereClause}
+    ORDER BY rank ASC, o.posted_date DESC
+    LIMIT ?
+  `;
+
+  const results = await db.prepare(statement).bind(...params, limit).all<OpportunityListItem & { rank: number }>();
+  return results.results ?? [];
+}
+
+function buildFtsQuery(query: string, mode: "smart" | "exact" | "any"): string | null {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+
+  if (mode === "exact") {
+    const sanitized = trimmed.replace(/["]/g, "");
+    return `"${sanitized}"`;
+  }
+
+  const tokens = trimmed.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  if (tokens.length === 0) return null;
+  const operator = mode === "any" ? " OR " : " AND ";
+  return tokens.map((token) => `${token}*`).join(operator);
 }
 
 export async function getOpportunityById(db: D1Database, id: string): Promise<OpportunityDetail | null> {
