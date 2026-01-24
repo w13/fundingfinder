@@ -23,8 +23,8 @@ opportunities, and assigns feasibility scores using Workers AI.
 
 ## Repo Layout
 
-- `app/` Next.js App Router dashboard
-- `components/` UI components
+- `app/` Next.js App Router dashboard with pages: Dashboard, Shortlist, Sources, Manage
+- `components/` UI components including Navigation and admin tabs
 - `lib/` API client and shared types
 - `workers/` Cloudflare Worker ingestion pipeline
 - `db/schema.sql` D1 schema for metadata, documents, and analyses
@@ -41,21 +41,32 @@ opportunities, and assigns feasibility scores using Workers AI.
 
 ```bash
 npm install
-npm run worker:dev
-npm run dev
+npm run worker:dev  # Start the backend Worker
+npm run dev         # Start the Next.js frontend
 ```
 
-Set `GRANT_SENTINEL_API_URL` (or `NEXT_PUBLIC_GRANT_SENTINEL_API_URL`) to your Worker endpoint so the dashboard can read
-data:
+Set `GRANT_SENTINEL_API_URL` (or `NEXT_PUBLIC_GRANT_SENTINEL_API_URL`) to your Worker endpoint so the dashboard can read data:
 
 ```bash
 export GRANT_SENTINEL_API_URL="http://localhost:8787"
 ```
 
+### Frontend Deployment
+
+The frontend is deployed to Cloudflare Workers using `@opennextjs/cloudflare`:
+
+```bash
+npm run build:cloudflare
+npm run frontend:deploy
+```
+
 ## Cloudflare Setup
 
 1. Create a D1 database and update `wrangler.toml` with its ID.
-2. Create an R2 bucket named `grant-sentinel-pdfs`.
+2. Create R2 buckets:
+   - `grant-sentinel-pdfs` (for PDF documents)
+   - `grant-sentinel-frontend-assets` (for frontend static assets)
+   - `grant-sentinel-next-cache` (for Next.js incremental cache)
 3. Create a Queue named `grant-sentinel-pdf`.
 4. Create a Vectorize index named `grant-sentinel-index`.
 5. Apply schema:
@@ -94,12 +105,23 @@ export BULK_MAX_NOTICES="500"
 
 ## Global Funding Sources
 
-The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP). Use the Admin
-Sources tab to:
+The registry-backed source pipeline supports manual or automated imports for bulk exports (XML/JSON/ZIP). 
 
-- Trigger a manual import by pasting a download URL.
-- Configure an auto URL + integration type for cron-style ingest.
-- Monitor last sync status and ingested counts.
+### Sources Page
+
+The dedicated **Sources** page (`/sources`) provides a comprehensive table view of all funding sources with:
+- **Status indicators**: Color-coded circles showing sync status (syncing, scheduled, synced, failed, inactive, etc.)
+- **Real-time status**: Shows whether sources are syncing now, scheduled to sync, or require manual sync
+- **Quick actions**: Sync and Enable/Disable buttons for each source
+- **Detailed metrics**: Last sync time, ingested counts, integration types
+
+### Manage Section
+
+Use the **Manage** section (`/admin`) to:
+- **Analytics**: View system-wide statistics and high-signal opportunities
+- **Sources**: Configure sources with manual imports, auto URLs, and integration types
+- **Filters**: Set exclusion rules and priority agencies
+- **Settings**: Configure environment and API endpoints
 
 ## Shortlist + AI Analysis
 
@@ -151,5 +173,4 @@ The D1 schema lives in `db/schema.sql` and includes:
 
 ## Compliance Disclaimer
 
-This product uses the Grants.gov API but is not endorsed or certified by the U.S. Department of Health and Human
-Services.
+Grant Sentinel aggregates data from multiple public funding sources (including Grants.gov, SAM.gov, TED.eu, HRSA, and others). This product is not endorsed or certified by any government agency or funding organization.

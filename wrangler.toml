@@ -15,7 +15,7 @@ BULK_MAX_NOTICES = "500"
 [[d1_databases]]
 binding = "DB"
 database_name = "grant_sentinel"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "4181e908-1b0d-4237-86ed-7a1b84c27583"
 
 [[r2_buckets]]
 binding = "PDF_BUCKET"

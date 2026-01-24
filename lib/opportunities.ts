@@ -1,7 +1,7 @@
 import type { OpportunityDetail, OpportunitySearchResponse } from "./types";
+import { getApiBaseUrl } from "./constants";
 
-const API_BASE_URL =
-  process.env.GRANT_SENTINEL_API_URL ?? process.env.NEXT_PUBLIC_GRANT_SENTINEL_API_URL ?? "";
+const API_BASE_URL = getApiBaseUrl();
 
 export async function fetchOpportunities(params: {
   query?: string;

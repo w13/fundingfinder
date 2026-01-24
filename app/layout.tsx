@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import Navigation from "../components/Navigation";
 
 export const metadata: Metadata = {
   title: "Grant Sentinel",
@@ -18,14 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <h1>Grant Sentinel</h1>
                 <p>Enterprise grant intelligence for AI and digital health.</p>
               </div>
-              <nav className="header__nav">
-                <Link href="/">Dashboard</Link>
-                <Link href="/shortlist">Shortlist</Link>
-                <Link href="/admin">Admin</Link>
-                <Link href="/admin?tab=sources">Sources</Link>
-                <Link href="https://ted.europa.eu/">TED</Link>
-                <Link href="https://sam.gov">SAM.gov</Link>
-              </nav>
+              <Navigation />
             </div>
           </header>
           <main style={{ flex: 1, padding: "32px 0" }}>
@@ -33,8 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
           <footer className="footer">
             <div className="container">
-              This product uses the Grants.gov API but is not endorsed or certified by the U.S. Department of Health and
-              Human Services.
+              Grant Sentinel aggregates data from multiple public funding sources. This product is not endorsed or certified by any government agency or funding organization.
             </div>
           </footer>
         </div>

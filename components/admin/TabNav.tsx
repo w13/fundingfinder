@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const TABS = [
-  { id: "overview", label: "Overview" },
+  { id: "overview", label: "Analytics" },
   { id: "sources", label: "Sources" },
-  { id: "exclusions", label: "Exclusions" },
+  { id: "exclusions", label: "Filters" },
   { id: "settings", label: "Settings" }
 ];
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import SearchForm from "../components/SearchForm";
 import OpportunityList from "../components/OpportunityList";
 import { fetchOpportunities } from "../lib/opportunities";
@@ -5,14 +6,15 @@ import { fetchSourceOptions } from "../lib/sources";
 import { fetchShortlist } from "../lib/shortlist";
 
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
 };
 
 export default async function Page({ searchParams }: PageProps) {
-  const query = typeof searchParams?.q === "string" ? searchParams.q : "";
-  const source = typeof searchParams?.source === "string" ? searchParams.source : "";
-  const minScore = typeof searchParams?.minScore === "string" ? searchParams.minScore : "";
-  const rawMode = typeof searchParams?.mode === "string" ? searchParams.mode : "smart";
+  const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
+  const query = typeof resolvedSearchParams?.q === "string" ? resolvedSearchParams.q : "";
+  const source = typeof resolvedSearchParams?.source === "string" ? resolvedSearchParams.source : "";
+  const minScore = typeof resolvedSearchParams?.minScore === "string" ? resolvedSearchParams.minScore : "";
+  const rawMode = typeof resolvedSearchParams?.mode === "string" ? resolvedSearchParams.mode : "smart";
   const resolvedMode = rawMode === "exact" || rawMode === "any" ? rawMode : "smart";
 
   const [{ items, warning }, sourcesResult, shortlistResult] = await Promise.all([
@@ -47,22 +49,35 @@ export default async function Page({ searchParams }: PageProps) {
       </section>
 
       <section className="grid grid-3">
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Stage 1 · Metadata Mirror</h3>
-          <p className="muted">
-            Polls federal APIs and global funding registries to capture the latest listings with private-sector eligibility.
-          </p>
-        </div>
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Stage 2 · PDF Harvester</h3>
-          <p className="muted">
-            Uses Browser Rendering and R2 storage to extract program requirements and evaluation criteria at scale.
-          </p>
-        </div>
+        <Link href="/admin?tab=sources" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+          <div className="card" style={{ cursor: "pointer", transition: "transform 0.2s ease, box-shadow 0.2s ease" }}>
+            <h3 style={{ marginTop: 0 }}>Stage 1 · Metadata Mirror</h3>
+            <p className="muted">
+              Polls federal APIs and global funding registries to capture the latest listings with private-sector eligibility.
+            </p>
+            <p style={{ marginTop: "8px", fontSize: "12px", color: "var(--primary)", fontWeight: 500 }}>
+              Manage Sources →
+            </p>
+          </div>
+        </Link>
+        <Link href="/admin?tab=overview" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+          <div className="card" style={{ cursor: "pointer", transition: "transform 0.2s ease, box-shadow 0.2s ease" }}>
+            <h3 style={{ marginTop: 0 }}>Stage 2 · PDF Harvester</h3>
+            <p className="muted">
+              Uses Browser Rendering and R2 storage to extract program requirements and evaluation criteria at scale.
+            </p>
+            <p style={{ marginTop: "8px", fontSize: "12px", color: "var(--primary)", fontWeight: 500 }}>
+              View Analytics →
+            </p>
+          </div>
+        </Link>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Stage 3 · AI Analyst</h3>
           <p className="muted">
             Scores feasibility, profitability, and vectors each opportunity for semantic search.
+          </p>
+          <p style={{ marginTop: "8px", fontSize: "12px", color: "var(--muted)" }}>
+            Results shown below
           </p>
         </div>
       </section>

@@ -35,8 +35,55 @@ export async function syncTedEu(
     return { records: [], pdfJobs: [] };
   }
 
+  const contentType = response.headers.get("content-type") ?? "";
+  // If we got HTML instead of a zip, try to extract the actual zip URL
+  if (contentType.includes("text/html")) {
+    const html = await response.text();
+    const zipLinks = extractZipLinks(html);
+    if (zipLinks.length === 0) {
+      console.warn("ted.eu no zip links found in HTML page");
+      return { records: [], pdfJobs: [] };
+    }
+    const actualZipUrl = pickLatestByDate(zipLinks) ?? zipLinks[0];
+    if (!actualZipUrl) {
+      console.warn("ted.eu could not determine zip URL");
+      return { records: [], pdfJobs: [] };
+    }
+    // Prevent infinite recursion if we get the same URL
+    if (options.zipUrl && options.zipUrl === actualZipUrl) {
+      console.warn("ted.eu circular zip URL reference detected");
+      return { records: [], pdfJobs: [] };
+    }
+    // Recursively fetch the actual zip file
+    return syncTedEu(env, ctx, rules, { ...options, zipUrl: actualZipUrl });
+  }
+
   const buffer = new Uint8Array(await response.arrayBuffer());
-  const entries = unzipSync(buffer);
+  
+  // Validate it's actually a zip file (PK header) or gzip (0x1f 0x8b)
+  if (buffer.length < 4) {
+    console.warn("ted.eu response too small to be a zip file");
+    return { records: [], pdfJobs: [] };
+  }
+  
+  const isZip = buffer[0] === 0x50 && buffer[1] === 0x4b; // PK (ZIP)
+  const isGzip = buffer[0] === 0x1f && buffer[1] === 0x8b; // GZIP
+  
+  if (!isZip && !isGzip) {
+    console.warn("ted.eu invalid zip data - not a zip or gzip file", {
+      firstBytes: Array.from(buffer.slice(0, 4)),
+      contentType
+    });
+    return { records: [], pdfJobs: [] };
+  }
+  
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(buffer);
+  } catch (error) {
+    console.warn("ted.eu unzip failed", error instanceof Error ? error.message : String(error));
+    return { records: [], pdfJobs: [] };
+  }
   const records: OpportunityRecord[] = [];
   let processed = 0;
 
@@ -96,7 +143,8 @@ function extractZipLinks(html: string): string[] {
 function pickLatestByDate(urls: string[]): string | null {
   let latest: { url: string; stamp: number } | null = null;
   for (const url of urls) {
-    const match = url.match(/(20\\d{6})/);
+    // Match dates in format YYYYMMDD
+    const match = url.match(/(20\d{6})/);
     if (!match) continue;
     const stamp = Number(match[1]);
     if (!latest || stamp > latest.stamp) {
@@ -156,9 +204,9 @@ async function parseTedNotice(
 }
 
 function extractTedNotices(xml: string): string[] {
-  const matches = xml.match(/<TED_EXPORT[\\s\\S]*?<\\/TED_EXPORT>/gi);
+  const matches = xml.match(/<TED_EXPORT[\s\S]*?<\/TED_EXPORT>/gi);
   if (matches && matches.length > 0) return matches;
-  const forms = xml.match(/<FORM_SECTION[\\s\\S]*?<\\/FORM_SECTION>/gi);
+  const forms = xml.match(/<FORM_SECTION[\s\S]*?<\/FORM_SECTION>/gi);
   if (forms && forms.length > 0) return forms;
   return [xml];
 }

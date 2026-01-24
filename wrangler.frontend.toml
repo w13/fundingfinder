@@ -1,0 +1,11 @@
+name = "grant-sentinel-frontend"
+main = "workers/src/frontend.ts"
+compatibility_date = "2026-01-24"
+compatibility_flags = ["nodejs_compat"]
+
+[[r2_buckets]]
+binding = "FRONTEND_ASSETS"
+bucket_name = "grant-sentinel-frontend-assets"
+
+[vars]
+NEXT_PUBLIC_GRANT_SENTINEL_API_URL = "https://grant-sentinel.wakas.workers.dev"

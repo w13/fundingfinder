@@ -49,6 +49,35 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname === "/" || url.pathname === "") {
+      return jsonResponse({
+        name: "Grant Sentinel API",
+        version: "1.0.0",
+        endpoints: {
+          health: "GET /health",
+          opportunities: "GET /api/opportunities?query=&source=&minScore=&limit=&mode=",
+          opportunityDetail: "GET /api/opportunities/:id",
+          sources: "GET /api/sources",
+          shortlist: {
+            list: "GET /api/shortlist",
+            add: "POST /api/shortlist",
+            remove: "POST /api/shortlist/remove",
+            analyze: "POST /api/shortlist/analyze"
+          },
+          admin: {
+            summary: "GET /api/admin/summary",
+            sources: "GET /api/admin/sources",
+            updateSource: "PATCH /api/admin/sources/:id",
+            syncSource: "POST /api/admin/sources/:id/sync",
+            exclusions: "GET /api/admin/exclusions",
+            addExclusion: "POST /api/admin/exclusions",
+            deleteExclusion: "DELETE /api/admin/exclusions/:id",
+            runSync: "POST /api/admin/run-sync"
+          }
+        }
+      });
+    }
+
     if (url.pathname === "/health") {
       return jsonResponse({ status: "ok" });
     }
