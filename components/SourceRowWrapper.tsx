@@ -15,8 +15,8 @@ type Source = {
   lastIngested: number;
   integrationType: string;
   autoUrl: string | null;
-  expectedResults?: number | null;
-  homepage?: string | null;
+  expectedResults: number | null;
+  homepage: string | null;
 };
 
 type SyncStatus = "syncing" | "scheduled" | "success" | "failed" | "manual" | "inactive" | "never";
@@ -31,7 +31,6 @@ interface SourceRowWrapperProps {
   status: SyncStatus;
   statusColor: string;
   statusLabel: string;
-  formatDate: (dateStr: string | null) => string;
   handleSync: (formData: FormData) => Promise<void>;
   handleToggle: (formData: FormData) => Promise<void>;
   handleSourceSync: (formData: FormData) => Promise<void>;
@@ -40,12 +39,27 @@ interface SourceRowWrapperProps {
   integrationTypeOptions: readonly IntegrationTypeOption[];
 }
 
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
 export default function SourceRowWrapper({
   source,
   status,
   statusColor,
   statusLabel,
-  formatDate,
   handleSync,
   handleToggle,
   handleSourceSync,

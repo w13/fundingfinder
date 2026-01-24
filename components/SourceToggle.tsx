@@ -35,7 +35,7 @@ export default function SourceToggle({
           height: "24px",
           appearance: "none",
           backgroundColor: active ? "var(--primary)" : "#cbd5e1",
-          borderRadius: "12px",
+          borderRadius: "0px",
           position: "relative",
           cursor: "pointer",
           transition: "background-color 0.2s ease",

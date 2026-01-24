@@ -4,6 +4,7 @@ import { isIntegrationType } from "./types";
 import { syncGrantsGov } from "./connectors/grantsGov";
 import { syncSamGov } from "./connectors/samGov";
 import { syncHrsa } from "./connectors/hrsa";
+import { syncWorldBank } from "./connectors/worldBank";
 import { syncFundingSource } from "./connectors/sourceRegistry";
 import {
   upsertOpportunity,
@@ -324,7 +325,7 @@ async function handleShortlistRoutes(
 }
 
 async function runSync(env: Env, ctx: ExecutionContext, isScheduled = false): Promise<void> {
-  const sources = [syncGrantsGov, syncSamGov, syncHrsa];
+  const sources = [syncGrantsGov, syncSamGov, syncHrsa, syncWorldBank];
   const pdfJobs: PdfJob[] = [];
   const updated = new Map<string, boolean>();
   const rules = await listExclusionRules(env.DB, true);

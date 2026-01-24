@@ -1,9 +1,9 @@
-import { fetchFundingSources, syncFundingSource, updateFundingSource, triggerIngestionSync, fetchAdminSummary, fetchExclusionRules, createExclusionRule, disableExclusionRule } from "../../lib/admin";
+import { fetchFundingSources, fetchAdminSummary, fetchExclusionRules } from "../../lib/admin";
 import SourceRowWrapper from "../../components/SourceRowWrapper";
 import OpportunityList from "../../components/OpportunityList";
 import { INTEGRATION_TYPE_OPTIONS } from "../../lib/constants";
 import { fetchOpportunities } from "../../lib/opportunities";
-import { revalidatePath } from "next/cache";
+import { handleSync, handleToggle, handleSyncAll, handleSourceSync, handleSourceUpdate, handleRowSync, handleAddRule, handleDisableRule } from "./actions";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
@@ -116,85 +116,6 @@ export default async function SourcesPage({ searchParams }: PageProps) {
 
   const sources = sourcesResult.sources;
 
-  async function handleSync(formData: FormData) {
-    "use server";
-    const sourceId = String(formData.get("sourceId") ?? "").trim();
-    if (!sourceId) return;
-    await syncFundingSource(sourceId, {});
-    revalidatePath("/sources");
-  }
-
-  async function handleToggle(formData: FormData) {
-    "use server";
-    const sourceId = String(formData.get("sourceId") ?? "").trim();
-    const active = String(formData.get("active") ?? "") === "true";
-    if (!sourceId) return;
-    await updateFundingSource(sourceId, { active });
-    revalidatePath("/sources");
-  }
-
-  async function handleSyncAll() {
-    "use server";
-    await triggerIngestionSync();
-    revalidatePath("/sources");
-  }
-
-  async function handleSourceSync(formData: FormData) {
-    "use server";
-    const sourceId = String(formData.get("sourceId") ?? "").trim();
-    const url = String(formData.get("url") ?? "").trim();
-    const maxNotices = Number(formData.get("maxNotices") ?? "");
-    if (!sourceId) return;
-    await syncFundingSource(sourceId, {
-      url: url || undefined,
-      maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
-    });
-    revalidatePath("/sources");
-  }
-
-  async function handleSourceUpdate(formData: FormData) {
-    "use server";
-    const sourceId = String(formData.get("sourceId") ?? "").trim();
-    const autoUrl = String(formData.get("autoUrl") ?? "").trim();
-    const integrationType = String(formData.get("integrationType") ?? "").trim();
-    const active = formData.get("active") === "on";
-    if (!sourceId) return;
-    await updateFundingSource(sourceId, {
-      integrationType: integrationType as "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "manual_url",
-      autoUrl: autoUrl ? autoUrl : null,
-      active
-    });
-    revalidatePath("/sources");
-  }
-
-  async function handleRowSync(formData: FormData) {
-    "use server";
-    const sourceId = String(formData.get("sourceId") ?? "").trim();
-    const maxNotices = Number(formData.get("maxNotices") ?? "");
-    if (!sourceId) return;
-    await syncFundingSource(sourceId, {
-      maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
-    });
-    revalidatePath("/sources");
-  }
-
-  async function handleAddRule(formData: FormData) {
-    "use server";
-    const ruleType = String(formData.get("ruleType") ?? "");
-    const value = String(formData.get("value") ?? "").trim();
-    if (!ruleType || !value) return;
-    await createExclusionRule(ruleType as "excluded_bureau" | "priority_agency", value);
-    revalidatePath("/sources");
-  }
-
-  async function handleDisableRule(formData: FormData) {
-    "use server";
-    const id = String(formData.get("id") ?? "");
-    if (!id) return;
-    await disableExclusionRule(id);
-    revalidatePath("/sources");
-  }
-
   // Sort alphabetically only, don't reorder on toggle
   const sortedSources = [...sources].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -217,59 +138,59 @@ export default async function SourcesPage({ searchParams }: PageProps) {
       </section>
 
       {/* Overview Stats */}
-      <div className="grid grid-3" style={{ gap: "12px", marginBottom: "24px" }}>
+      <div className="grid grid-3" style={{ gap: "8px", marginBottom: "16px" }}>
         <div className="card">
           <p className="muted">Total opportunities</p>
-          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
+          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
         </div>
         <div className="card">
           <p className="muted">For-profit eligible</p>
-          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
+          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
         </div>
         <div className="card">
           <p className="muted">Analyzed w/ AI</p>
-          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
+          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
         </div>
         <div className="card">
           <p className="muted">High feasibility</p>
-          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
+          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
         </div>
         <div className="card">
           <p className="muted">Last update</p>
-          <h3 style={{ margin: "6px 0 0" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
+          <h3 style={{ margin: "4px 0 0" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
         </div>
         <div className="card">
           <p className="muted">Active sources</p>
-          <h3 style={{ margin: "6px 0 0" }}>{sources.filter(s => s.active).length}</h3>
+          <h3 style={{ margin: "4px 0 0" }}>{sources.filter(s => s.active).length}</h3>
         </div>
       </div>
 
       {/* High-signal opportunities */}
-      <div className="card" style={{ marginBottom: "24px" }}>
+      <div className="card" style={{ marginBottom: "16px" }}>
         <h3 style={{ marginTop: 0 }}>High-signal opportunities</h3>
         <OpportunityList items={highSignal.items} />
       </div>
 
       {/* Filters/Exclusions */}
-      <div className="card" style={{ marginBottom: "24px" }}>
+      <div className="card" style={{ marginBottom: "16px" }}>
         <h3 style={{ marginTop: 0 }}>Filters</h3>
         {exclusionsResult.warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginBottom: "16px" }}>
+          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginBottom: "12px" }}>
             {exclusionsResult.warning}
           </div>
         ) : null}
-        <div className="grid grid-2" style={{ gap: "16px", marginBottom: "16px" }}>
+        <div className="grid grid-2" style={{ gap: "12px", marginBottom: "12px" }}>
           <div>
-            <h4 style={{ marginTop: 0, marginBottom: "12px", fontSize: "14px" }}>Add Filter</h4>
+            <h4 style={{ marginTop: 0, marginBottom: "8px", fontSize: "14px" }}>Add Filter</h4>
             <form className="grid" action={handleAddRule} style={{ gap: "8px" }}>
-              <label style={{ display: "grid", gap: "6px" }}>
+              <label style={{ display: "grid", gap: "4px" }}>
                 <span className="pill" style={{ fontSize: "11px", padding: "4px 8px" }}>Filter type</span>
                 <select className="select" name="ruleType" defaultValue="excluded_bureau" style={{ padding: "8px 10px", fontSize: "13px" }}>
                   <option value="excluded_bureau">Exclude bureau/agency</option>
                   <option value="priority_agency">Priority agency</option>
                 </select>
               </label>
-              <label style={{ display: "grid", gap: "6px" }}>
+              <label style={{ display: "grid", gap: "4px" }}>
                 <span className="pill" style={{ fontSize: "11px", padding: "4px 8px" }}>Value</span>
                 <input className="input" name="value" placeholder="e.g. USDA, Forestry" style={{ padding: "8px 10px", fontSize: "13px" }} />
               </label>
@@ -279,7 +200,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
             </form>
           </div>
           <div>
-            <h4 style={{ marginTop: 0, marginBottom: "12px", fontSize: "14px" }}>Active Filters</h4>
+            <h4 style={{ marginTop: 0, marginBottom: "8px", fontSize: "14px" }}>Active Filters</h4>
             {exclusionsResult.rules.length ? (
               <table className="table" style={{ margin: 0 }}>
                 <thead>
@@ -316,9 +237,9 @@ export default async function SourcesPage({ searchParams }: PageProps) {
       </div>
 
       {/* Settings */}
-      <div className="card" style={{ marginBottom: "24px" }}>
+      <div className="card" style={{ marginBottom: "16px" }}>
         <h3 style={{ marginTop: 0 }}>Settings</h3>
-        <div className="grid grid-2" style={{ gap: "16px" }}>
+        <div className="grid grid-2" style={{ gap: "12px" }}>
           <div>
             <p className="muted" style={{ fontSize: "12px", marginBottom: "8px" }}>Worker API</p>
             <p style={{ margin: 0, fontSize: "13px" }}>
@@ -356,31 +277,18 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 const status = getSyncStatus(source);
                 const statusColor = getStatusColor(status);
                 const statusLabel = getStatusLabel(status);
-                
-                const formatDate = (dateStr: string | null) => {
-                  if (!dateStr) return "—";
-                  const date = new Date(dateStr);
-                  const now = new Date();
-                  const diffMs = now.getTime() - date.getTime();
-                  const diffMins = Math.floor(diffMs / 60000);
-                  const diffHours = Math.floor(diffMs / 3600000);
-                  const diffDays = Math.floor(diffMs / 86400000);
-                  
-                  if (diffMins < 1) return "Just now";
-                  if (diffMins < 60) return `${diffMins}m ago`;
-                  if (diffHours < 24) return `${diffHours}h ago`;
-                  if (diffDays < 7) return `${diffDays}d ago`;
-                  return date.toLocaleDateString();
-                };
 
                 return (
                   <SourceRowWrapper
                     key={source.id}
-                    source={source}
+                    source={{
+                      ...source,
+                      expectedResults: source.expectedResults ?? null,
+                      homepage: source.homepage ?? null
+                    }}
                     status={status}
                     statusColor={statusColor}
                     statusLabel={statusLabel}
-                    formatDate={formatDate}
                     handleSync={handleSync}
                     handleToggle={handleToggle}
                     handleSourceSync={handleSourceSync}
