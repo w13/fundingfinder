@@ -1,17 +1,30 @@
-import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import type { Opportunity } from "../lib/domain/types";
 import { formatSourceLabel } from "../lib/domain/format";
 import { addShortlist } from "../lib/api/shortlist";
 import { ScoreBadge } from "./ScoreBadge";
+import TrackedLink from "./TrackedLink";
 
 type OpportunityListProps = {
   items?: Opportunity[];
   shortlistKeys?: string[];
   showShortlistActions?: boolean;
+  searchContext?: {
+    query?: string;
+    source?: string;
+    minScore?: number | null;
+    mode?: "smart" | "exact" | "any";
+  };
+  readOnly?: boolean;
 };
 
-export default function OpportunityList({ items = [], shortlistKeys = [], showShortlistActions = false }: OpportunityListProps) {
+export default function OpportunityList({
+  items = [],
+  shortlistKeys = [],
+  showShortlistActions = false,
+  searchContext,
+  readOnly = false
+}: OpportunityListProps) {
   const shortlistSet = new Set(shortlistKeys ?? []);
 
   async function handleShortlist(formData: FormData) {
@@ -37,15 +50,28 @@ export default function OpportunityList({ items = [], shortlistKeys = [], showSh
 
   return (
     <div className="grid">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <div key={item.id} className="card" style={{ display: "grid", gap: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", alignItems: "flex-start" }}>
             <div style={{ flex: 1, minWidth: "200px" }}>
-              <Link href={`/opportunities/${item.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+              <TrackedLink
+                href={`/opportunities/${item.id}`}
+                style={{ textDecoration: "none", color: "inherit" }}
+                event={{
+                  query: searchContext?.query ?? null,
+                  sourceFilter: searchContext?.source ?? null,
+                  minScore: searchContext?.minScore ?? null,
+                  mode: searchContext?.mode ?? "smart",
+                  opportunityId: item.opportunityId,
+                  source: item.source,
+                  resultId: item.id,
+                  position: index + 1
+                }}
+              >
                 <h3 style={{ margin: 0, marginBottom: "8px", fontSize: "18px", fontWeight: 600, color: "var(--text)" }}>
                   {item.title}
                 </h3>
-              </Link>
+              </TrackedLink>
               <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
                 {item.agency ?? "Unknown agency"} · {formatSourceLabel(item.source)}
               </p>
@@ -72,14 +98,27 @@ export default function OpportunityList({ items = [], shortlistKeys = [], showSh
                 <form action={handleShortlist} style={{ margin: 0 }}>
                   <input type="hidden" name="opportunityId" value={item.opportunityId} />
                   <input type="hidden" name="source" value={item.source} />
-                  <button className="button button--secondary button--small" type="submit">
-                    Add to shortlist
+                  <button className="button button--secondary button--small" type="submit" disabled={readOnly}>
+                    {readOnly ? "Read-only" : "Add to shortlist"}
                   </button>
                 </form>
               )}
-              <Link href={`/opportunities/${item.id}`} className="button button--secondary button--small">
+              <TrackedLink
+                href={`/opportunities/${item.id}`}
+                className="button button--secondary button--small"
+                event={{
+                  query: searchContext?.query ?? null,
+                  sourceFilter: searchContext?.source ?? null,
+                  minScore: searchContext?.minScore ?? null,
+                  mode: searchContext?.mode ?? "smart",
+                  opportunityId: item.opportunityId,
+                  source: item.source,
+                  resultId: item.id,
+                  position: index + 1
+                }}
+              >
                 View details
-              </Link>
+              </TrackedLink>
             </div>
           ) : null}
         </div>

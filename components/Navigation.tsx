@@ -27,7 +27,9 @@ function NavigationContent() {
   const navItems = [
     { href: "/", label: "Dashboard" },
     { href: "/sources", label: "Sources" },
-    { href: "/shortlist", label: "AI Analysis" }
+    { href: "/shortlist", label: "AI Analysis" },
+    { href: "/admin", label: "Admin" },
+    { href: "/status", label: "Status" }
   ];
 
   return (
@@ -55,6 +57,8 @@ export default function Navigation() {
         <div className="header__nav-link">Dashboard</div>
         <div className="header__nav-link">Sources</div>
         <div className="header__nav-link">AI Analysis</div>
+        <div className="header__nav-link">Admin</div>
+        <div className="header__nav-link">Status</div>
       </nav>
     }>
       <NavigationContent />

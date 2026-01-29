@@ -10,6 +10,7 @@ import type {
   SourceSystem
 } from "./types";
 import { safeJsonParse } from "./utils";
+import { insertNormalizationDiagnostics } from "./db/diagnostics";
 
 export interface OpportunityQuery {
   query?: string;
@@ -119,6 +120,13 @@ export async function upsertOpportunity(db: D1Database, record: OpportunityRecor
       .run();
 
     await insertOpportunityVersion(db, record, record.version, now);
+    if (record.diagnostics) {
+      await insertNormalizationDiagnostics(db, {
+        opportunityId: record.opportunityId,
+        source: record.source,
+        diagnostics: record.diagnostics
+      });
+    }
     return { id: record.id, version: record.version, updated: true };
   }
 
@@ -153,6 +161,13 @@ export async function upsertOpportunity(db: D1Database, record: OpportunityRecor
       .run();
 
     await insertOpportunityVersion(db, record, nextVersion, now);
+    if (record.diagnostics) {
+      await insertNormalizationDiagnostics(db, {
+        opportunityId: record.opportunityId,
+        source: record.source,
+        diagnostics: record.diagnostics
+      });
+    }
     return { id: existing.id, version: nextVersion, updated: true };
   }
 
@@ -269,7 +284,9 @@ async function listOpportunitiesFts(db: D1Database, query: OpportunityQuery): Pr
       a.feasibility_score as feasibilityScore,
       a.suitability_score as suitabilityScore,
       a.profitability_score as profitabilityScore,
-      bm25(f, 6.0, 3.0, 2.0) as rank
+      bm25(f, 6.0, 3.0, 2.0) as rank,
+      COALESCE(sb_source.boost, 0) + COALESCE(sb_agency.boost, 0) as boost,
+      bm25(f, 6.0, 3.0, 2.0) - COALESCE(sb_source.boost, 0) - COALESCE(sb_agency.boost, 0) as adjustedRank
     FROM opportunities_fts f
     JOIN opportunities o
       ON o.opportunity_id = f.opportunity_id AND o.source = f.source
@@ -277,12 +294,16 @@ async function listOpportunitiesFts(db: D1Database, query: OpportunityQuery): Pr
       ON a.opportunity_id = o.opportunity_id
       AND a.source = o.source
       AND a.rn = 1
+    LEFT JOIN search_boosts sb_source
+      ON sb_source.entity_type = 'source' AND sb_source.entity_value = o.source
+    LEFT JOIN search_boosts sb_agency
+      ON sb_agency.entity_type = 'agency' AND sb_agency.entity_value = o.agency
     ${whereClause}
-    ORDER BY rank ASC, o.posted_date DESC
+    ORDER BY adjustedRank ASC, o.posted_date DESC
     LIMIT ?
   `;
 
-  const results = await db.prepare(statement).bind(...params, limit).all<OpportunityListItem & { rank: number }>();
+  const results = await db.prepare(statement).bind(...params, limit).all<OpportunityListItem & { rank: number; boost: number; adjustedRank: number }>();
   return results.results ?? [];
 }
 
@@ -710,8 +731,14 @@ export async function listFundingSources(db: D1Database, activeOnly = false): Pr
         integration_type as integrationType,
         auto_url as autoUrl,
         expected_results as expectedResults,
+        max_notices as maxNotices,
+        keyword_includes as keywordIncludes,
+        keyword_excludes as keywordExcludes,
+        language,
+        metadata,
         active,
         last_sync as lastSync,
+        last_successful_sync as lastSuccessfulSync,
         last_status as lastStatus,
         last_error as lastError,
         last_ingested as lastIngested,
@@ -729,8 +756,14 @@ export async function listFundingSources(db: D1Database, activeOnly = false): Pr
       integrationType: SourceIntegrationType;
       autoUrl: string | null;
       expectedResults: number | null;
+      maxNotices: number | null;
+      keywordIncludes: string | null;
+      keywordExcludes: string | null;
+      language: string | null;
+      metadata: string | null;
       active: number;
       lastSync: string | null;
+      lastSuccessfulSync: string | null;
       lastStatus: string | null;
       lastError: string | null;
       lastIngested: number | null;
@@ -742,7 +775,12 @@ export async function listFundingSources(db: D1Database, activeOnly = false): Pr
     results.results?.map((row) => ({
       ...row,
       active: Boolean(row.active),
-      lastIngested: Number(row.lastIngested ?? 0)
+      lastIngested: Number(row.lastIngested ?? 0),
+      maxNotices: row.maxNotices ?? null,
+      keywordIncludes: row.keywordIncludes ?? null,
+      keywordExcludes: row.keywordExcludes ?? null,
+      language: row.language ?? null,
+      metadata: safeJsonParse<Record<string, unknown>>(row.metadata) ?? null
     })) ?? []
   );
 }
@@ -758,8 +796,14 @@ export async function getFundingSource(db: D1Database, id: string): Promise<Fund
         integration_type as integrationType,
         auto_url as autoUrl,
         expected_results as expectedResults,
+        max_notices as maxNotices,
+        keyword_includes as keywordIncludes,
+        keyword_excludes as keywordExcludes,
+        language,
+        metadata,
         active,
         last_sync as lastSync,
+        last_successful_sync as lastSuccessfulSync,
         last_status as lastStatus,
         last_error as lastError,
         last_ingested as lastIngested,
@@ -777,8 +821,14 @@ export async function getFundingSource(db: D1Database, id: string): Promise<Fund
       integrationType: SourceIntegrationType;
       autoUrl: string | null;
       expectedResults: number | null;
+      maxNotices: number | null;
+      keywordIncludes: string | null;
+      keywordExcludes: string | null;
+      language: string | null;
+      metadata: string | null;
       active: number;
       lastSync: string | null;
+      lastSuccessfulSync: string | null;
       lastStatus: string | null;
       lastError: string | null;
       lastIngested: number | null;
@@ -790,7 +840,12 @@ export async function getFundingSource(db: D1Database, id: string): Promise<Fund
   return {
     ...row,
     active: Boolean(row.active),
-    lastIngested: Number(row.lastIngested ?? 0)
+    lastIngested: Number(row.lastIngested ?? 0),
+    maxNotices: row.maxNotices ?? null,
+    keywordIncludes: row.keywordIncludes ?? null,
+    keywordExcludes: row.keywordExcludes ?? null,
+    language: row.language ?? null,
+    metadata: safeJsonParse<Record<string, unknown>>(row.metadata) ?? null
   };
 }
 
@@ -801,6 +856,11 @@ export async function updateFundingSource(
     integrationType?: SourceIntegrationType;
     autoUrl?: string | null;
     active?: boolean;
+    maxNotices?: number | null;
+    keywordIncludes?: string | null;
+    keywordExcludes?: string | null;
+    language?: string | null;
+    metadata?: Record<string, unknown> | null;
   }
 ): Promise<boolean> {
   const fields: string[] = [];
@@ -817,6 +877,26 @@ export async function updateFundingSource(
   if (typeof updates.active === "boolean") {
     fields.push("active = ?");
     values.push(updates.active ? 1 : 0);
+  }
+  if (typeof updates.maxNotices !== "undefined") {
+    fields.push("max_notices = ?");
+    values.push(updates.maxNotices);
+  }
+  if (typeof updates.keywordIncludes !== "undefined") {
+    fields.push("keyword_includes = ?");
+    values.push(updates.keywordIncludes);
+  }
+  if (typeof updates.keywordExcludes !== "undefined") {
+    fields.push("keyword_excludes = ?");
+    values.push(updates.keywordExcludes);
+  }
+  if (typeof updates.language !== "undefined") {
+    fields.push("language = ?");
+    values.push(updates.language);
+  }
+  if (typeof updates.metadata !== "undefined") {
+    fields.push("metadata = ?");
+    values.push(updates.metadata ? JSON.stringify(updates.metadata) : null);
   }
 
   if (fields.length === 0) return false;
@@ -838,10 +918,12 @@ export async function updateFundingSourceSync(
   id: string,
   payload: { status: string; error?: string | null; ingested?: number }
 ): Promise<void> {
+  const lastSuccessfulSync = payload.status === "success" ? new Date().toISOString() : null;
   await db
     .prepare(
       `UPDATE funding_sources SET
         last_sync = ?,
+        last_successful_sync = COALESCE(?, last_successful_sync),
         last_status = ?,
         last_error = ?,
         last_ingested = ?,
@@ -850,6 +932,7 @@ export async function updateFundingSourceSync(
     )
     .bind(
       new Date().toISOString(),
+      lastSuccessfulSync,
       payload.status,
       payload.error ?? null,
       payload.ingested ?? 0,
@@ -859,6 +942,67 @@ export async function updateFundingSourceSync(
     .run();
 }
 
+export async function insertFundingSource(
+  db: D1Database,
+  payload: {
+    id: string;
+    name: string;
+    country?: string | null;
+    homepage?: string | null;
+    integrationType: SourceIntegrationType;
+    autoUrl?: string | null;
+    expectedResults?: number | null;
+    maxNotices?: number | null;
+    keywordIncludes?: string | null;
+    keywordExcludes?: string | null;
+    language?: string | null;
+    metadata?: Record<string, unknown> | null;
+    active?: boolean;
+  }
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  const result = await db
+    .prepare(
+      `INSERT INTO funding_sources (
+        id,
+        name,
+        country,
+        homepage,
+        integration_type,
+        auto_url,
+        expected_results,
+        max_notices,
+        keyword_includes,
+        keyword_excludes,
+        language,
+        metadata,
+        active,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      payload.id,
+      payload.name,
+      payload.country ?? null,
+      payload.homepage ?? null,
+      payload.integrationType,
+      payload.autoUrl ?? null,
+      payload.expectedResults ?? null,
+      payload.maxNotices ?? null,
+      payload.keywordIncludes ?? null,
+      payload.keywordExcludes ?? null,
+      payload.language ?? null,
+      payload.metadata ? JSON.stringify(payload.metadata) : null,
+      payload.active ? 1 : 0,
+      now,
+      now
+    )
+    .run();
+
+  return Boolean(result.meta?.changes);
+}
+
 export async function toggleAllFundingSources(db: D1Database, active: boolean): Promise<number> {
   const result = await db
     .prepare(`UPDATE funding_sources SET active = ?, updated_at = ? WHERE active != ?`)
@@ -866,3 +1010,12 @@ export async function toggleAllFundingSources(db: D1Database, active: boolean): 
     .run();
   return result.meta?.changes ?? 0;
 }
+
+export * from "./db/savedSearches";
+export * from "./db/searchEvents";
+export * from "./db/sourceHealth";
+export * from "./db/pdfJobs";
+export * from "./db/failedJobs";
+export * from "./db/notifications";
+export * from "./db/diagnostics";
+export * from "./db/searchBoosts";

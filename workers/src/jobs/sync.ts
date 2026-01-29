@@ -17,7 +17,13 @@ import {
   listFundingSources,
   getFundingSource,
   updateFundingSourceSync,
-  listShortlistForAnalysis
+  listShortlistForAnalysis,
+  insertPdfJob,
+  insertSourceSyncRun,
+  completeSourceSyncRun,
+  markPdfJobProcessing,
+  markPdfJobCompleted,
+  markPdfJobFailed
 } from "../db";
 import { resolvePdfLinks } from "../processing/browser";
 import { ingestPdf } from "../processing/pdf";
@@ -25,33 +31,71 @@ import { analyzeFeasibility } from "../analysis/feasibility";
 import { indexOpportunity } from "../analysis/vectorize";
 import { sendDailyBrief } from "../notifications";
 
-export async function runSync(env: Env, ctx: ExecutionContext, isScheduled = false): Promise<void> {
-  const sources = [syncGrantsGov, syncSamGov, syncHrsa, syncWorldBank, syncProzorro, syncContractsFinder, syncAusTender, syncChileCompra];
+export async function runSync(env: Env, ctx: ExecutionContext, isScheduled = false, correlationId?: string): Promise<void> {
+  const runCorrelationId = correlationId ?? crypto.randomUUID();
+  const sources = [
+    { id: "grants_gov", sync: syncGrantsGov },
+    { id: "sam_gov", sync: syncSamGov },
+    { id: "hrsa", sync: syncHrsa },
+    { id: "world_bank", sync: syncWorldBank },
+    { id: "prozorro_ua", sync: syncProzorro },
+    { id: "contracts_finder_uk", sync: syncContractsFinder },
+    { id: "aus_tender", sync: syncAusTender },
+    { id: "chile_compra", sync: syncChileCompra }
+  ];
   const pdfJobs: PdfJob[] = [];
   const updated = new Map<string, boolean>();
   const rules = await listExclusionRules(env.DB, true);
 
   for (const sourceSync of sources) {
-    const { records, pdfJobs: newJobs } = await sourceSync(env, ctx, rules);
-    
-    const BATCH_SIZE = 10;
-    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-      const chunk = records.slice(i, i + BATCH_SIZE);
-      await Promise.all(chunk.map(async (record) => {
-        const result = await upsertOpportunity(env.DB, record);
-        updated.set(`${record.source}:${record.opportunityId}`, result.updated);
-      }));
+    const startedAt = new Date().toISOString();
+    const syncRunId = await insertSourceSyncRun(env.DB, {
+      sourceId: sourceSync.id,
+      status: "syncing",
+      startedAt,
+      correlationId: runCorrelationId
+    });
+
+    try {
+      const { records, pdfJobs: newJobs } = await sourceSync.sync(env, ctx, rules);
+      let ingested = 0;
+
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < records.length; i += BATCH_SIZE) {
+        const chunk = records.slice(i, i + BATCH_SIZE);
+        await Promise.all(chunk.map(async (record) => {
+          const result = await upsertOpportunity(env.DB, record);
+          if (result.updated) ingested += 1;
+          updated.set(`${record.source}:${record.opportunityId}`, result.updated);
+        }));
+      }
+
+      await updateFundingSourceSync(env.DB, sourceSync.id, { status: "success", ingested });
+      await completeSourceSyncRun(env.DB, syncRunId, { status: "success", ingestedCount: ingested });
+
+      pdfJobs.push(...newJobs);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      await updateFundingSourceSync(env.DB, sourceSync.id, { status: "failed", error: message, ingested: 0 });
+      await completeSourceSyncRun(env.DB, syncRunId, { status: "failed", ingestedCount: 0, error: message });
+      console.error("source sync failed", sourceSync.id, error);
     }
-    
-    pdfJobs.push(...newJobs);
   }
 
-  await syncCatalogSources(env, ctx, rules);
+  await syncCatalogSources(env, ctx, rules, runCorrelationId);
 
   for (const job of pdfJobs) {
+    const jobId = job.jobId ?? crypto.randomUUID();
     const key = `${job.source}:${job.opportunityId}`;
     if (!updated.get(key)) continue;
-    await env.PDF_QUEUE.send(job);
+    await insertPdfJob(env.DB, {
+      id: jobId,
+      opportunityId: job.opportunityId,
+      source: job.source,
+      status: "queued",
+      correlationId: job.correlationId ?? runCorrelationId
+    });
+    await env.PDF_QUEUE.send({ ...job, jobId, correlationId: job.correlationId ?? runCorrelationId });
   }
 
   if (isScheduled) {
@@ -69,12 +113,17 @@ export async function runSync(env: Env, ctx: ExecutionContext, isScheduled = fal
   }
 }
 
-async function syncCatalogSources(env: Env, ctx: ExecutionContext, rules: Awaited<ReturnType<typeof listExclusionRules>>): Promise<void> {
+async function syncCatalogSources(
+  env: Env,
+  ctx: ExecutionContext,
+  rules: Awaited<ReturnType<typeof listExclusionRules>>,
+  correlationId: string
+): Promise<void> {
   const sources = await listFundingSources(env.DB, true);
   for (const source of sources) {
     if (source.integrationType === "core_api") continue;
     if (source.integrationType === "manual_url" && !source.autoUrl) continue;
-    await syncAndStoreSource(env, ctx, source, rules, {});
+    await syncAndStoreSource(env, ctx, source, rules, {}, correlationId);
   }
 }
 
@@ -82,7 +131,8 @@ export async function runSourceSync(
   env: Env,
   ctx: ExecutionContext,
   sourceId: string,
-  options: { url?: string; maxNotices?: number }
+  options: { url?: string; maxNotices?: number },
+  correlationId?: string
 ): Promise<void> {
   const rules = await listExclusionRules(env.DB, true);
   const source = await getFundingSource(env.DB, sourceId);
@@ -93,7 +143,7 @@ export async function runSourceSync(
   
   await updateFundingSourceSync(env.DB, source.id, { status: "syncing", error: null });
   
-  await syncAndStoreSource(env, ctx, source, rules, options);
+  await syncAndStoreSource(env, ctx, source, rules, options, correlationId ?? crypto.randomUUID());
 }
 
 async function syncAndStoreSource(
@@ -101,11 +151,21 @@ async function syncAndStoreSource(
   ctx: ExecutionContext,
   source: Awaited<ReturnType<typeof getFundingSource>>,
   rules: Awaited<ReturnType<typeof listExclusionRules>>,
-  options: { url?: string; maxNotices?: number }
+  options: { url?: string; maxNotices?: number },
+  correlationId: string
 ): Promise<void> {
   if (!source) return;
+  const syncRunId = await insertSourceSyncRun(env.DB, {
+    sourceId: source.id,
+    status: "syncing",
+    startedAt: new Date().toISOString(),
+    correlationId
+  });
   try {
-    const records = await syncFundingSource(env, ctx, source, rules, options);
+    const records = await syncFundingSource(env, ctx, source, rules, {
+      ...options,
+      maxNotices: options.maxNotices ?? source.maxNotices ?? undefined
+    });
     let ingested = 0;
     
     const BATCH_SIZE = 10;
@@ -116,9 +176,11 @@ async function syncAndStoreSource(
     }
 
     await updateFundingSourceSync(env.DB, source.id, { status: "success", ingested });
+    await completeSourceSyncRun(env.DB, syncRunId, { status: "success", ingestedCount: ingested });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     await updateFundingSourceSync(env.DB, source.id, { status: "failed", error: message });
+    await completeSourceSyncRun(env.DB, syncRunId, { status: "failed", ingestedCount: 0, error: message });
     console.error("source sync failed", source.id, error);
   }
 }
@@ -162,39 +224,49 @@ export async function runShortlistAnalysis(
 }
 
 export async function processPdfJob(env: Env, ctx: ExecutionContext, job: PdfJob): Promise<void> {
-  const pdfLinks = await resolvePdfLinks(env, job.detailUrl, job.documentUrls);
-  const limited = pdfLinks.slice(0, 3);
-  
-  let combinedText = "";
-  const collectedSections: SectionSlices[] = [];
+  const jobId = job.jobId ?? crypto.randomUUID();
+  const correlationId = job.correlationId ?? null;
+  await markPdfJobProcessing(env.DB, jobId);
+  try {
+    const pdfLinks = await resolvePdfLinks(env, job.detailUrl, job.documentUrls);
+    const limited = pdfLinks.slice(0, 3);
 
-  for (let index = 0; index < limited.length; index += 1) {
-    const pdfUrl = limited[index];
-    const result = await ingestPdf(env, pdfUrl, job.opportunityId, job.source);
-    if (!result) continue;
+    let combinedText = "";
+    const collectedSections: SectionSlices[] = [];
 
-    await insertDocument(env.DB, job.opportunityId, job.source, pdfUrl, result.r2Key, result.textExcerpt, result.sections);
-    
-    if (result.fullText) {
-      combinedText += `--- Document ${index + 1} ---\n${result.fullText}\n\n`;
+    for (let index = 0; index < limited.length; index += 1) {
+      const pdfUrl = limited[index];
+      const result = await ingestPdf(env, pdfUrl, job.opportunityId, job.source);
+      if (!result) continue;
+
+      await insertDocument(env.DB, job.opportunityId, job.source, pdfUrl, result.r2Key, result.textExcerpt, result.sections);
+
+      if (result.fullText) {
+        combinedText += `--- Document ${index + 1} ---\n${result.fullText}\n\n`;
+      }
+      collectedSections.push(result.sections);
     }
-    collectedSections.push(result.sections);
+
+    const mergedSections: SectionSlices = {
+      programDescription: collectedSections.map(s => s.programDescription).filter(Boolean).join("\n\n"),
+      requirements: collectedSections.map(s => s.requirements).filter(Boolean).join("\n\n"),
+      evaluationCriteria: collectedSections.map(s => s.evaluationCriteria).filter(Boolean).join("\n\n")
+    };
+
+    if (combinedText.trim().length > 0) {
+      const analysis = await analyzeFeasibility(env, job.title, mergedSections, combinedText.slice(0, 30000));
+      await insertAnalysis(env.DB, job.opportunityId, job.source, analysis);
+      await indexOpportunity(env, job.opportunityId, job.source, combinedText.slice(0, 2000), {
+        opportunityId: job.opportunityId,
+        source: job.source
+      });
+    }
+
+    await markPdfJobCompleted(env.DB, jobId);
+    ctx.waitUntil(Promise.resolve());
+  } catch (error) {
+    await markPdfJobFailed(env.DB, jobId, error instanceof Error ? error.message : String(error));
+    console.error("pdf job failed", { jobId, correlationId, source: job.source, opportunityId: job.opportunityId }, error);
+    throw error;
   }
-
-  const mergedSections: SectionSlices = {
-    programDescription: collectedSections.map(s => s.programDescription).filter(Boolean).join("\n\n"),
-    requirements: collectedSections.map(s => s.requirements).filter(Boolean).join("\n\n"),
-    evaluationCriteria: collectedSections.map(s => s.evaluationCriteria).filter(Boolean).join("\n\n")
-  };
-
-  if (combinedText.trim().length > 0) {
-    const analysis = await analyzeFeasibility(env, job.title, mergedSections, combinedText.slice(0, 30000));
-    await insertAnalysis(env.DB, job.opportunityId, job.source, analysis);
-    await indexOpportunity(env, job.opportunityId, job.source, combinedText.slice(0, 2000), {
-      opportunityId: job.opportunityId,
-      source: job.source
-    });
-  }
-
-  ctx.waitUntil(Promise.resolve());
 }

@@ -1,9 +1,13 @@
-export function jsonResponse(payload: unknown, status = 200, request?: Request): Response {
+import { getCorrelationId } from "./correlation";
+
+export function jsonResponse(payload: unknown, status = 200, request?: Request, correlationId?: string): Response {
+  const resolvedCorrelationId = correlationId ?? getCorrelationId(request);
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Correlation-ID",
+    "X-Correlation-ID": resolvedCorrelationId
   };
 
   // Handle preflight OPTIONS requests

@@ -6,9 +6,10 @@ import { useErrorLogger } from "../lib/errors/useErrorLogger";
 interface AnalyzeButtonProps {
   action: (formData?: FormData) => Promise<void>;
   itemCount: number;
+  readOnly?: boolean;
 }
 
-export default function AnalyzeButton({ action, itemCount }: AnalyzeButtonProps) {
+export default function AnalyzeButton({ action, itemCount, readOnly = false }: AnalyzeButtonProps) {
   const { logError } = useErrorLogger("AnalyzeButton");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -48,12 +49,12 @@ export default function AnalyzeButton({ action, itemCount }: AnalyzeButtonProps)
       <button
         className="button"
         type="submit"
-        disabled={isLoading || itemCount === 0}
+        disabled={isLoading || itemCount === 0 || readOnly}
         style={{
           position: "relative",
           overflow: "hidden",
-          opacity: isLoading ? 0.8 : 1,
-          cursor: isLoading || itemCount === 0 ? "not-allowed" : "pointer"
+          opacity: isLoading || readOnly ? 0.8 : 1,
+          cursor: isLoading || itemCount === 0 || readOnly ? "not-allowed" : "pointer"
         }}
       >
         {isLoading ? (
@@ -76,9 +77,7 @@ export default function AnalyzeButton({ action, itemCount }: AnalyzeButtonProps)
             </svg>
             Analyzing...
           </>
-        ) : (
-          "Analyze Shortlist"
-        )}
+        ) : readOnly ? "Read-only" : "Analyze Shortlist"}
         {isLoading && (
           <span
             style={{

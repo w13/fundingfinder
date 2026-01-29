@@ -2,8 +2,7 @@
 
 import { useState, useMemo } from "react";
 import SourceRowWrapper from "./SourceRowWrapper";
-import type { FundingSource } from "../lib/domain/types";
-import { useErrorLogger } from "../lib/errors/useErrorLogger";
+import type { FundingSource, SourceHealthSummary } from "../lib/domain/types";
 
 type SyncStatus = "syncing" | "scheduled" | "success" | "failed" | "manual" | "inactive" | "never";
 
@@ -16,6 +15,7 @@ type FundingSourceWithStatus = FundingSource & {
   syncStatus: SyncStatus;
   statusColor: string;
   statusLabel: string;
+  health?: SourceHealthSummary;
 };
 
 interface SourcesTableProps {
@@ -27,6 +27,7 @@ interface SourcesTableProps {
   handleRowSync: (formData: FormData) => Promise<void>;
   integrationTypeOptions: readonly IntegrationTypeOption[];
   toggleAllComponent?: React.ReactNode;
+  readOnly?: boolean;
 }
 
 type SortField = "name" | "status" | "lastSync" | "lastIngested" | "integrationType" | "active" | null;
@@ -40,9 +41,9 @@ export default function SourcesTable({
   handleSourceUpdate,
   handleRowSync,
   integrationTypeOptions,
-  toggleAllComponent
+  toggleAllComponent,
+  readOnly = false
 }: SourcesTableProps) {
-  const { logError } = useErrorLogger("SourcesTable");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -362,6 +363,8 @@ export default function SourcesTable({
                     status={source.syncStatus}
                     statusColor={source.statusColor}
                     statusLabel={source.statusLabel}
+                    health={source.health}
+                    readOnly={readOnly}
                     handleSync={handleSync}
                     handleToggle={handleToggle}
                     handleSourceSync={handleSourceSync}

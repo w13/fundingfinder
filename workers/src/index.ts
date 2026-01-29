@@ -6,6 +6,7 @@ import { processPendingTasks } from "./jobs/scheduler";
 import { handleAdminRoutes } from "./routes/admin";
 import { handleShortlistRoutes } from "./routes/shortlist";
 import { handleOpportunities, handleOpportunityDetail, handleSources } from "./routes/opportunities";
+import { handleSavedSearchRoutes, handleSearchEventRoutes } from "./routes/search";
 import { jsonResponse } from "./utils/response";
 
 export default {
@@ -42,6 +43,12 @@ export default {
           opportunities: "GET /api/opportunities?query=&source=&minScore=&limit=&mode=",
           opportunityDetail: "GET /api/opportunities/:id",
           sources: "GET /api/sources",
+          savedSearches: {
+            list: "GET /api/saved-searches",
+            create: "POST /api/saved-searches",
+            delete: "POST /api/saved-searches/delete"
+          },
+          searchEvents: "POST /api/search-events",
           shortlist: {
             list: "GET /api/shortlist",
             add: "POST /api/shortlist",
@@ -50,13 +57,21 @@ export default {
           },
           admin: {
             summary: "GET /api/admin/summary",
+            overview: "GET /api/admin/overview",
             sources: "GET /api/admin/sources",
+            createSource: "POST /api/admin/sources",
+            previewSource: "POST /api/admin/sources/preview",
             updateSource: "PATCH /api/admin/sources/:id",
             syncSource: "POST /api/admin/sources/:id/sync",
             exclusions: "GET /api/admin/exclusions",
             addExclusion: "POST /api/admin/exclusions",
             deleteExclusion: "DELETE /api/admin/exclusions/:id",
-            runSync: "POST /api/admin/run-sync"
+            runSync: "POST /api/admin/run-sync",
+            notifications: "GET/POST/PATCH /api/admin/notifications",
+            searchBoosts: "GET/POST /api/admin/search-boosts",
+            searchAnalytics: "GET /api/admin/search-analytics",
+            diagnostics: "GET /api/admin/diagnostics",
+            failedJobs: "GET /api/admin/failed-jobs"
           }
         }
       }, 200, request);
@@ -77,6 +92,12 @@ export default {
 
     const shortlistResponse = await handleShortlistRoutes(request, env, ctx, url);
     if (shortlistResponse) return shortlistResponse;
+
+    const savedSearchResponse = await handleSavedSearchRoutes(request, env, url);
+    if (savedSearchResponse) return savedSearchResponse;
+
+    const searchEventResponse = await handleSearchEventRoutes(request, env, url);
+    if (searchEventResponse) return searchEventResponse;
 
     const opportunityDetail = await handleOpportunityDetail(request, env, url);
     if (opportunityDetail) return opportunityDetail;

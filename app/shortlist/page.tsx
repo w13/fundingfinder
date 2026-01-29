@@ -2,8 +2,10 @@ import Link from "next/link";
 import { fetchShortlist } from "../../lib/api/shortlist";
 import AnalyzeButton from "../../components/AnalyzeButton";
 import ShortlistTable from "../../components/ShortlistTable";
+import WarningBanner from "../../components/WarningBanner";
 import { logServerError } from "../../lib/errors/serverErrorLogger";
-import { handleAnalyze, handleRemove } from "./actions";
+import { handleAnalyze, handleBulkAnalyze, handleRemove } from "./actions";
+import { isReadOnlyMode } from "../../lib/domain/constants";
 
 // Force dynamic rendering to avoid static generation issues
 export const dynamic = "force-dynamic";
@@ -15,8 +17,9 @@ export default async function ShortlistPage() {
       return { items: [], warning: `Failed to load shortlist: ${err instanceof Error ? err.message : "Unknown error"}` };
     });
 
-  const analyzedCount = items.filter((item) => item.analyzed).length;
+        const analyzedCount = items.filter((item) => item.analyzed).length;
   const unanalyzedCount = items.length - analyzedCount;
+        const readOnly = isReadOnlyMode();
 
   return (
     <div>
@@ -28,23 +31,10 @@ export default async function ShortlistPage() {
               Analyze and score shortlisted opportunities using AI
             </p>
           </div>
-          <AnalyzeButton action={handleAnalyze} itemCount={items.length} />
+          <AnalyzeButton action={handleAnalyze} itemCount={items.length} readOnly={readOnly} />
         </div>
 
-        {warning && (
-          <div
-            className="card"
-            style={{
-              background: "#fef3c7",
-              border: "1px solid #fde68a",
-              color: "#92400e",
-              padding: "12px 16px",
-              marginBottom: "24px"
-            }}
-          >
-            {warning}
-          </div>
-        )}
+        <WarningBanner warnings={warning} />
 
         <div
           style={{
@@ -86,7 +76,7 @@ export default async function ShortlistPage() {
           </p>
         </div>
       ) : (
-        <ShortlistTable items={items} onRemove={handleRemove} />
+        <ShortlistTable items={items} onRemove={handleRemove} onAnalyzeSelected={handleBulkAnalyze} readOnly={readOnly} />
       )}
     </div>
   );

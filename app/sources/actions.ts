@@ -3,8 +3,10 @@
 import { syncFundingSource, updateFundingSource, triggerIngestionSync, createExclusionRule, disableExclusionRule, toggleAllSources } from "../../lib/api/admin";
 import { revalidatePath } from "next/cache";
 import { logServerError } from "../../lib/errors/serverErrorLogger";
+import { isReadOnlyMode } from "../../lib/domain/constants";
 
 export async function handleSync(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   if (!sourceId) return;
   // Enable the source when manually syncing
@@ -14,6 +16,7 @@ export async function handleSync(formData: FormData) {
 }
 
 export async function handleToggle(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const active = String(formData.get("active") ?? "") === "true";
   if (!sourceId) return;
@@ -22,11 +25,13 @@ export async function handleToggle(formData: FormData) {
 }
 
 export async function handleSyncAll(formData?: FormData) {
+  if (isReadOnlyMode()) return;
   await triggerIngestionSync();
   revalidatePath("/sources");
 }
 
 export async function handleSourceSync(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const url = String(formData.get("url") ?? "").trim();
   const maxNotices = Number(formData.get("maxNotices") ?? "");
@@ -41,20 +46,30 @@ export async function handleSourceSync(formData: FormData) {
 }
 
 export async function handleSourceUpdate(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const autoUrl = String(formData.get("autoUrl") ?? "").trim();
   const integrationType = String(formData.get("integrationType") ?? "").trim();
   const active = formData.get("active") === "on";
+  const maxNotices = Number(formData.get("maxNotices") ?? "");
+  const keywordIncludes = String(formData.get("keywordIncludes") ?? "").trim();
+  const keywordExcludes = String(formData.get("keywordExcludes") ?? "").trim();
+  const language = String(formData.get("language") ?? "").trim();
   if (!sourceId) return;
   await updateFundingSource(sourceId, {
     integrationType: integrationType as "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "bulk_csv" | "manual_url",
     autoUrl: autoUrl ? autoUrl : null,
-    active
+    active,
+    maxNotices: Number.isNaN(maxNotices) ? null : maxNotices,
+    keywordIncludes: keywordIncludes || null,
+    keywordExcludes: keywordExcludes || null,
+    language: language || null
   });
   revalidatePath("/sources");
 }
 
 export async function handleRowSync(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const maxNotices = Number(formData.get("maxNotices") ?? "");
   if (!sourceId) return;
@@ -67,6 +82,7 @@ export async function handleRowSync(formData: FormData) {
 }
 
 export async function handleAddRule(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const ruleType = String(formData.get("ruleType") ?? "");
   const value = String(formData.get("value") ?? "").trim();
   if (!ruleType || !value) return;
@@ -75,6 +91,7 @@ export async function handleAddRule(formData: FormData) {
 }
 
 export async function handleDisableRule(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const id = String(formData.get("id") ?? "");
   if (!id) return;
   await disableExclusionRule(id);
@@ -82,6 +99,7 @@ export async function handleDisableRule(formData: FormData) {
 }
 
 export async function handleToggleAll(formData: FormData) {
+  if (isReadOnlyMode()) return;
   const active = String(formData.get("active") ?? "") === "true";
   
   try {

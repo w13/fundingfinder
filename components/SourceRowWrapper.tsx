@@ -10,6 +10,7 @@ import SourceRowActions from "./SourceRowActions";
 import SourceStatusDisplay from "./SourceStatusDisplay";
 import HelpTooltip from "./HelpTooltip";
 import { getSourceDescription } from "../lib/domain/sourceDescriptions";
+import type { SourceHealthSummary } from "../lib/domain/types";
 
 type Source = {
   id: string;
@@ -17,6 +18,7 @@ type Source = {
   country: string | null;
   active: boolean;
   lastSync: string | null;
+  lastSuccessfulSync: string | null;
   lastStatus: string | null;
   lastError: string | null;
   lastIngested: number;
@@ -24,6 +26,11 @@ type Source = {
   autoUrl: string | null;
   expectedResults: number | null;
   homepage: string | null;
+  maxNotices: number | null;
+  keywordIncludes: string | null;
+  keywordExcludes: string | null;
+  language: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type SyncStatus = "syncing" | "scheduled" | "success" | "failed" | "manual" | "inactive" | "never";
@@ -38,6 +45,8 @@ interface SourceRowWrapperProps {
   status: SyncStatus;
   statusColor: string;
   statusLabel: string;
+  health?: SourceHealthSummary;
+  readOnly?: boolean;
   handleSync: (formData: FormData) => Promise<void>;
   handleToggle: (formData: FormData) => Promise<void>;
   handleSourceSync: (formData: FormData) => Promise<void>;
@@ -67,6 +76,8 @@ export default function SourceRowWrapper({
   status,
   statusColor,
   statusLabel,
+  health,
+  readOnly = false,
   handleSync,
   handleToggle,
   handleSourceSync,
@@ -116,7 +127,7 @@ export default function SourceRowWrapper({
             <button
               type="submit"
               className="toggle-button"
-              disabled={isToggling}
+              disabled={isToggling || readOnly}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -126,11 +137,11 @@ export default function SourceRowWrapper({
                 fontWeight: 500,
                 border: "none",
                 background: "transparent",
-                cursor: isToggling ? "wait" : "pointer",
+                cursor: isToggling || readOnly ? "not-allowed" : "pointer",
                 color: source.active ? "var(--primary)" : "var(--muted)",
                 borderRadius: "0",
                 transition: "all 0.2s ease",
-                opacity: isToggling ? 0.6 : 1
+                opacity: isToggling || readOnly ? 0.6 : 1
               }}
               title={source.active ? "Disable source" : "Enable source"}
             >
@@ -198,6 +209,9 @@ export default function SourceRowWrapper({
             statusColor={statusColor}
             lastError={source.lastError}
             lastIngested={source.lastIngested}
+            lastSuccessfulSync={health?.lastSuccessfulSync ?? source.lastSuccessfulSync}
+            errorRate={health?.errorRate ?? 0}
+            ingestedLast24h={health?.ingestedLast24h ?? 0}
             isSyncing={isSyncing}
           />
         </td>
@@ -208,7 +222,7 @@ export default function SourceRowWrapper({
             <button
               className="button button--small"
               type="submit"
-              disabled={isSyncing}
+              disabled={isSyncing || readOnly}
               style={{
                 whiteSpace: "nowrap",
                 display: "inline-flex",
@@ -216,8 +230,8 @@ export default function SourceRowWrapper({
                 gap: "6px",
                 width: "100%",
                 justifyContent: "center",
-                opacity: isSyncing ? 0.6 : 1,
-                cursor: isSyncing ? "not-allowed" : "pointer"
+                opacity: isSyncing || readOnly ? 0.6 : 1,
+                cursor: isSyncing || readOnly ? "not-allowed" : "pointer"
               }}
               title="Sync this source now"
             >
@@ -302,9 +316,31 @@ export default function SourceRowWrapper({
                   </div>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Last Successful Sync</label>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text-secondary)" }}>
+                      {formatDate(health?.lastSuccessfulSync ?? source.lastSuccessfulSync)}
+                    </p>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
                       <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Opportunities Ingested</label>
                     </div>
                     <p style={{ margin: 0, fontSize: "13px", color: "var(--text)", fontWeight: 600 }}>{source.lastIngested.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>24h Ingested</label>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text-secondary)" }}>{(health?.ingestedLast24h ?? 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Error Rate (30d)</label>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", color: health && health.errorRate > 0.2 ? "#b91c1c" : "var(--text-secondary)" }}>
+                      {((health?.errorRate ?? 0) * 100).toFixed(0)}%
+                    </p>
                   </div>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
@@ -349,7 +385,7 @@ export default function SourceRowWrapper({
                         </Label.Root>
                         <HelpTooltip content="How the source provides data: Core API (direct API access), Bulk XML/JSON (downloadable files), or Manual URL (web scraping). Changing this may require updating the Auto URL." />
                       </div>
-                      <Select.Root value={integrationType} onValueChange={setIntegrationType}>
+                      <Select.Root value={integrationType} onValueChange={setIntegrationType} disabled={readOnly}>
                         <input type="hidden" name="integrationType" value={integrationType} />
                         <Select.Trigger
                           id={`integrationType-${source.id}`}
@@ -364,8 +400,10 @@ export default function SourceRowWrapper({
                             border: "1px solid var(--border)",
                             borderRadius: "0",
                             transition: "all 0.2s ease",
-                            cursor: "pointer"
+                          cursor: readOnly ? "not-allowed" : "pointer",
+                          opacity: readOnly ? 0.6 : 1
                           }}
+                        disabled={readOnly}
                         >
                           <Select.Value />
                           <Select.Icon>
@@ -419,6 +457,7 @@ export default function SourceRowWrapper({
                         name="autoUrl" 
                         defaultValue={source.autoUrl ?? ""} 
                         placeholder="https://example.com/data/export.zip"
+                        disabled={readOnly}
                         style={{ 
                           padding: "10px 14px", 
                           fontSize: "13px", 
@@ -439,6 +478,111 @@ export default function SourceRowWrapper({
                       />
                     </div>
 
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                        <Label.Root htmlFor={`maxNotices-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                          Default Max Notices
+                        </Label.Root>
+                        <HelpTooltip content="Optional per-source limit for notices ingested during scheduled runs." />
+                      </div>
+                      <input
+                        id={`maxNotices-${source.id}`}
+                        className="input"
+                        name="maxNotices"
+                        type="number"
+                        defaultValue={source.maxNotices ?? ""}
+                        placeholder="Leave empty for no limit"
+                        disabled={readOnly}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          width: "100%",
+                          background: "#fff",
+                          border: "1px solid var(--border)",
+                          borderRadius: "0",
+                          transition: "all 0.2s ease"
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                        <Label.Root htmlFor={`keywordIncludes-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                          Keyword Includes
+                        </Label.Root>
+                        <HelpTooltip content="Comma-separated keywords to boost for this source." />
+                      </div>
+                      <input
+                        id={`keywordIncludes-${source.id}`}
+                        className="input"
+                        name="keywordIncludes"
+                        defaultValue={source.keywordIncludes ?? ""}
+                        placeholder="ai, digital health, analytics"
+                        disabled={readOnly}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          width: "100%",
+                          background: "#fff",
+                          border: "1px solid var(--border)",
+                          borderRadius: "0",
+                          transition: "all 0.2s ease"
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                        <Label.Root htmlFor={`keywordExcludes-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                          Keyword Excludes
+                        </Label.Root>
+                        <HelpTooltip content="Comma-separated keywords to downrank for this source." />
+                      </div>
+                      <input
+                        id={`keywordExcludes-${source.id}`}
+                        className="input"
+                        name="keywordExcludes"
+                        defaultValue={source.keywordExcludes ?? ""}
+                        placeholder="construction, roadworks"
+                        disabled={readOnly}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          width: "100%",
+                          background: "#fff",
+                          border: "1px solid var(--border)",
+                          borderRadius: "0",
+                          transition: "all 0.2s ease"
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                        <Label.Root htmlFor={`language-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                          Language Preference
+                        </Label.Root>
+                        <HelpTooltip content="Optional language hint for parsing or scoring." />
+                      </div>
+                      <input
+                        id={`language-${source.id}`}
+                        className="input"
+                        name="language"
+                        defaultValue={source.language ?? ""}
+                        placeholder="en, es, fr"
+                        disabled={readOnly}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          width: "100%",
+                          background: "#fff",
+                          border: "1px solid var(--border)",
+                          borderRadius: "0",
+                          transition: "all 0.2s ease"
+                        }}
+                      />
+                    </div>
+
                     <div style={{ 
                       padding: "14px", 
                       background: "#fff", 
@@ -449,6 +593,7 @@ export default function SourceRowWrapper({
                         <Checkbox.Root
                           name="active"
                           defaultChecked={source.active}
+                          disabled={readOnly}
                           style={{
                             margin: "2px 0 0",
                             width: "18px",
@@ -460,7 +605,7 @@ export default function SourceRowWrapper({
                             border: "1px solid",
                             borderColor: source.active ? "var(--primary)" : "var(--border)",
                             borderRadius: "0",
-                            cursor: "pointer",
+                            cursor: readOnly ? "not-allowed" : "pointer",
                             transition: "all 0.2s ease"
                           }}
                         >
@@ -486,7 +631,9 @@ export default function SourceRowWrapper({
                       fontWeight: 600, 
                       alignSelf: "flex-start",
                       borderRadius: "0",
-                      transition: "all 0.2s ease"
+                      transition: "all 0.2s ease",
+                      opacity: readOnly ? 0.6 : 1,
+                      cursor: readOnly ? "not-allowed" : "pointer"
                     }}>
                       Save Configuration
                     </button>
@@ -510,6 +657,7 @@ export default function SourceRowWrapper({
                           name="maxNotices" 
                           type="number"
                           placeholder="Leave empty for all records" 
+                          disabled={readOnly}
                           style={{ 
                             padding: "10px 14px", 
                             fontSize: "13px", 
@@ -535,7 +683,9 @@ export default function SourceRowWrapper({
                         fontSize: "13px", 
                         fontWeight: 600,
                         borderRadius: "0",
-                        transition: "all 0.2s ease"
+                        transition: "all 0.2s ease",
+                        opacity: readOnly ? 0.6 : 1,
+                        cursor: readOnly ? "not-allowed" : "pointer"
                       }}>
                         Sync Now
                       </button>
@@ -563,6 +713,7 @@ export default function SourceRowWrapper({
                             name="url" 
                             type="url"
                             placeholder="https://example.com/specific-export.zip" 
+                            disabled={readOnly}
                             style={{ 
                               padding: "10px 14px", 
                               fontSize: "13px", 
@@ -596,6 +747,7 @@ export default function SourceRowWrapper({
                             name="maxNotices" 
                             type="number"
                             placeholder="Leave empty for all records" 
+                            disabled={readOnly}
                             style={{ 
                               padding: "10px 14px", 
                               fontSize: "13px", 
@@ -621,7 +773,9 @@ export default function SourceRowWrapper({
                           fontSize: "13px", 
                           fontWeight: 600,
                           borderRadius: "0",
-                          transition: "all 0.2s ease"
+                          transition: "all 0.2s ease",
+                          opacity: readOnly ? 0.6 : 1,
+                          cursor: readOnly ? "not-allowed" : "pointer"
                         }}>
                           Run Import
                         </button>

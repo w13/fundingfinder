@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchFundingSources } from "../lib/api/admin";
-import type { FundingSource } from "../lib/domain/types";
+import { useErrorLogger } from "../lib/errors/useErrorLogger";
 
 interface SourceStatusDisplayProps {
   sourceId: string;
@@ -12,6 +12,9 @@ interface SourceStatusDisplayProps {
   statusColor: string;
   lastError: string | null;
   lastIngested: number;
+  lastSuccessfulSync?: string | null;
+  errorRate?: number;
+  ingestedLast24h?: number;
   isSyncing: boolean;
 }
 
@@ -67,8 +70,12 @@ export default function SourceStatusDisplay({
   statusColor,
   lastError,
   lastIngested,
+  lastSuccessfulSync,
+  errorRate = 0,
+  ingestedLast24h = 0,
   isSyncing
 }: SourceStatusDisplayProps) {
+  const { logWarning } = useErrorLogger("SourceStatusDisplay");
   const [status, setStatus] = useState(initialStatus);
   const [statusLabel, setStatusLabel] = useState(initialStatusLabel);
   const [currentError, setCurrentError] = useState<string | null>(lastError);
@@ -121,7 +128,7 @@ export default function SourceStatusDisplay({
           }
         }
       } catch (error) {
-        console.error("Error polling source status:", error);
+        logWarning(error instanceof Error ? error : String(error), { action: "pollStatus", sourceId });
       }
     }, 2000); // Poll every 2 seconds
 
@@ -151,6 +158,16 @@ export default function SourceStatusDisplay({
           }}
         >
           {statusMessage}
+        </div>
+      )}
+      {lastSuccessfulSync && (
+        <div className="muted" style={{ fontSize: "11px", marginTop: "4px", lineHeight: "1.4" }}>
+          Last success: {new Date(lastSuccessfulSync).toLocaleDateString()}
+        </div>
+      )}
+      {(ingestedLast24h > 0 || errorRate > 0) && (
+        <div className="muted" style={{ fontSize: "11px", marginTop: "4px", lineHeight: "1.4" }}>
+          24h ingested: {ingestedLast24h.toLocaleString()} · Error rate: {(errorRate * 100).toFixed(0)}%
         </div>
       )}
       {currentError && status === "failed" && !statusMessage.includes(currentError) && (

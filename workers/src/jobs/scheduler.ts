@@ -24,7 +24,7 @@ export async function processPendingTasks(env: Env, ctx: ExecutionContext): Prom
           throw new Error(`Invalid sync_source payload: ${JSON.stringify(task.payload)}`);
         }
         const { sourceId, options } = task.payload;
-        await runSourceSync(env, ctx, sourceId, options ?? {});
+        await runSourceSync(env, ctx, sourceId, options ?? {}, task.payload.correlationId ?? undefined);
       } else {
         console.warn(`Unknown task type: ${task.type}`);
       }

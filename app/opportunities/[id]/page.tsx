@@ -4,6 +4,7 @@ import { ScoreBadge } from "../../../components/ScoreBadge";
 import { formatSourceLabel } from "../../../lib/domain/format";
 import { logServerError } from "../../../lib/errors/serverErrorLogger";
 import { handleShortlist } from "./actions";
+import { isReadOnlyMode } from "../../../lib/domain/constants";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -27,6 +28,8 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
     );
   }
 
+  const readOnly = isReadOnlyMode();
+
   return (
     <div className="grid">
       <Link href="/" style={{ color: "var(--primary)" }}>
@@ -49,8 +52,8 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           <input type="hidden" name="opportunityId" value={item.opportunityId} />
           <input type="hidden" name="source" value={item.source} />
           <input type="hidden" name="pageId" value={resolvedParams.id} />
-          <button className="button button--secondary" type="submit">
-            Add to shortlist
+          <button className="button button--secondary" type="submit" disabled={readOnly}>
+            {readOnly ? "Read-only" : "Add to shortlist"}
           </button>
         </form>
       </div>
