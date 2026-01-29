@@ -139,6 +139,10 @@ INSERT INTO opportunities_fts (opportunity_id, source, title, summary, agency)
 SELECT opportunity_id, source, title, summary, agency FROM opportunities;
 ```
 
+## Data hygiene and backfills
+
+See [`docs/data-hygiene.md`](docs/data-hygiene.md) for cleanup, FTS backfill, and re-sync scripts.
+
 ## D1 Schema
 
 The D1 schema lives in `db/schema.sql` and includes:

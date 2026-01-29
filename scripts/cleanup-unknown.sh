@@ -2,7 +2,7 @@
 # Script to clean up "Unknown" entries from the database
 # Usage: ./scripts/cleanup-unknown.sh
 
-API_URL="https://grant-sentinel.wakas.workers.dev/api/admin/cleanup-unknown"
+API_URL="${GRANT_SENTINEL_API_URL:-https://grant-sentinel.wakas.workers.dev}/api/admin/cleanup-unknown"
 
 # Check if ADMIN_API_KEY is set
 if [ -z "$ADMIN_API_KEY" ]; then

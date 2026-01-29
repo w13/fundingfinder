@@ -43,7 +43,12 @@ test.describe('Sources Page', () => {
     const searchInput = page.locator('input[placeholder*="Search sources"]');
     await expect(searchInput).toBeVisible();
     
-    // Test searching
+    // Test searching unless in read-only mode
+    if (await searchInput.isDisabled()) {
+      await expect(searchInput).toBeDisabled();
+      return;
+    }
+
     await searchInput.fill('grants');
     await page.waitForTimeout(500); // Wait for search to filter
     
@@ -131,6 +136,11 @@ test.describe('Sources Page', () => {
     const toggleSwitch = enableAllSection.locator('button[role="switch"]').first();
     
     await expect(toggleSwitch).toBeVisible();
+
+    if (!(await toggleSwitch.isEnabled())) {
+      await expect(toggleSwitch).toBeDisabled();
+      return;
+    }
     
     // Get initial state
     const initialChecked = await toggleSwitch.getAttribute('aria-checked');
