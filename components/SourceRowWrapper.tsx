@@ -1,8 +1,15 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import * as Select from "@radix-ui/react-select";
+import * as Checkbox from "@radix-ui/react-checkbox";
+import * as Label from "@radix-ui/react-label";
+import * as Separator from "@radix-ui/react-separator";
+import { ChevronDownIcon, CheckIcon } from "@radix-ui/react-icons";
 import SourceRowActions from "./SourceRowActions";
-import { getSourceDescription } from "../lib/sourceDescriptions";
+import SourceStatusDisplay from "./SourceStatusDisplay";
+import HelpTooltip from "./HelpTooltip";
+import { getSourceDescription } from "../lib/domain/sourceDescriptions";
 
 type Source = {
   id: string;
@@ -70,10 +77,27 @@ export default function SourceRowWrapper({
   const [isToggling] = useTransition();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStartTime, setSyncStartTime] = useState<number | null>(null);
+  const [integrationType, setIntegrationType] = useState(source.integrationType);
 
-  const handleSyncClick = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSyncClick = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setIsSyncing(true);
-    setTimeout(() => setIsSyncing(false), 3000);
+    setSyncStartTime(Date.now());
+    
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      await handleSync(formData);
+      // Keep syncing state for at least 2 seconds to show feedback
+      setTimeout(() => {
+        setIsSyncing(false);
+        setSyncStartTime(null);
+      }, 2000);
+    } catch (error) {
+      setIsSyncing(false);
+      setSyncStartTime(null);
+    }
   };
 
   return (
@@ -166,18 +190,20 @@ export default function SourceRowWrapper({
           </div>
         </td>
         <td style={{ padding: "16px" }}>
-          <div style={{ fontSize: "13px", fontWeight: 600, color: statusColor, marginBottom: "4px" }}>
-            {statusLabel}
-          </div>
-          {source.lastError && status === "failed" && (
-            <div className="muted" style={{ fontSize: "11px", marginTop: "4px", lineHeight: "1.4" }}>
-              {source.lastError.length > 50 ? `${source.lastError.substring(0, 50)}...` : source.lastError}
-            </div>
-          )}
+          <SourceStatusDisplay
+            sourceId={source.id}
+            sourceName={source.name}
+            initialStatus={status}
+            initialStatusLabel={statusLabel}
+            statusColor={statusColor}
+            lastError={source.lastError}
+            lastIngested={source.lastIngested}
+            isSyncing={isSyncing}
+          />
         </td>
         <td style={{ padding: "16px", fontSize: "13px", color: "var(--text-secondary)" }}>
           <div style={{ marginBottom: "8px" }}>{formatDate(source.lastSync)}</div>
-          <form action={handleSync} onSubmit={handleSyncClick} style={{ margin: 0 }}>
+          <form onSubmit={handleSyncClick} style={{ margin: 0 }}>
             <input type="hidden" name="sourceId" value={source.id} />
             <button
               className="button button--small"
@@ -258,88 +284,351 @@ export default function SourceRowWrapper({
       {isExpanded && (
         <tr>
           <td colSpan={7} style={{ padding: "0", borderBottom: "1px solid var(--border-light)" }}>
-            <div style={{ padding: "24px", background: "#f8fafc", borderTop: "1px solid var(--border-light)" }}>
-              <div className="grid grid-4" style={{ gap: "12px", marginBottom: "16px" }}>
-                <div>
-                  <p className="muted" style={{ fontSize: "10px", margin: "0 0 4px" }}>Auto URL</p>
-                  <p style={{ margin: 0, fontSize: "12px", wordBreak: "break-word" }}>{source.autoUrl ?? "Not set"}</p>
-                </div>
-                <div>
-                  <p className="muted" style={{ fontSize: "10px", margin: "0 0 4px" }}>Last sync</p>
-                  <p style={{ margin: 0, fontSize: "12px" }}>{source.lastSync ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="muted" style={{ fontSize: "10px", margin: "0 0 4px" }}>Last ingested</p>
-                  <p style={{ margin: 0, fontSize: "12px" }}>{source.lastIngested ?? 0}</p>
-                </div>
-                <div>
-                  <p className="muted" style={{ fontSize: "10px", margin: "0 0 4px" }}>Expected volume</p>
-                  <p style={{ margin: 0, fontSize: "12px" }}>{source.expectedResults != null ? source.expectedResults.toLocaleString() : "—"}</p>
-                </div>
-                <div>
-                  <p className="muted" style={{ fontSize: "10px", margin: "0 0 4px" }}>Homepage</p>
-                  {source.homepage ? (
-                    <a href={source.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontSize: "12px" }}>
-                      Visit portal
-                    </a>
-                  ) : (
-                    <p style={{ margin: 0, fontSize: "12px" }}>—</p>
+            <div style={{ 
+              padding: "28px", 
+              background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+              borderTop: "1px solid var(--border-light)",
+              borderLeft: "3px solid var(--primary)"
+            }}>
+              {/* Read-only Information Section */}
+              <div style={{ marginBottom: "28px" }}>
+                <h4 style={{ margin: "0 0 16px", fontSize: "15px", fontWeight: 600, color: "var(--text)", letterSpacing: "-0.01em" }}>Source Information</h4>
+                <div className="grid grid-3" style={{ gap: "16px" }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Last Sync Time</label>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text-secondary)" }}>{formatDate(source.lastSync)}</p>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Opportunities Ingested</label>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text)", fontWeight: 600 }}>{source.lastIngested.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Expected Volume</label>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text-secondary)" }}>{source.expectedResults != null ? source.expectedResults.toLocaleString() : "Not specified"}</p>
+                  </div>
+                  {source.homepage && (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                        <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--text)", margin: 0 }}>Source Portal</label>
+                      </div>
+                      <a href={source.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontSize: "13px", textDecoration: "none" }}>
+                        Visit website →
+                      </a>
+                    </div>
+                  )}
+                  {source.lastError && (
+                    <div style={{ gridColumn: "span 2" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                        <label style={{ fontSize: "12px", fontWeight: 500, color: "#dc2626", margin: 0 }}>Last Error</label>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "12px", color: "#dc2626", wordBreak: "break-word" }}>{source.lastError}</p>
+                    </div>
                   )}
                 </div>
-                <div>
-                  <p className="muted" style={{ fontSize: "10px", margin: "0 0 4px" }}>Last error</p>
-                  <p style={{ margin: 0, fontSize: "12px", wordBreak: "break-word" }}>{source.lastError ?? "—"}</p>
-                </div>
               </div>
-              <div className="grid grid-3" style={{ gap: "12px" }}>
-                <form action={handleRowSync} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <input type="hidden" name="sourceId" value={source.id} />
-                  <label style={{ display: "grid", gap: "4px" }}>
-                    <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>Max notices</span>
-                    <input className="input" name="maxNotices" placeholder="500" style={{ padding: "6px 8px", fontSize: "12px" }} />
-                  </label>
-                  <button className="button" type="submit" style={{ padding: "6px 12px", fontSize: "12px" }}>
-                    Sync now
-                  </button>
-                </form>
-                <form action={handleSourceUpdate} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <input type="hidden" name="sourceId" value={source.id} />
-                  <label style={{ display: "grid", gap: "4px" }}>
-                    <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>Integration type</span>
-                    <select className="select" name="integrationType" defaultValue={source.integrationType} style={{ padding: "6px 8px", fontSize: "12px" }}>
-                      {integrationTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={{ display: "grid", gap: "4px" }}>
-                    <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>Auto URL</span>
-                    <input className="input" name="autoUrl" defaultValue={source.autoUrl ?? ""} style={{ padding: "6px 8px", fontSize: "12px" }} />
-                  </label>
-                  <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <input type="checkbox" name="active" defaultChecked={source.active} style={{ margin: 0 }} />
-                    <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>Enable cron</span>
-                  </label>
-                  <button className="button button--secondary" type="submit" style={{ padding: "6px 12px", fontSize: "12px" }}>
-                    Save settings
-                  </button>
-                </form>
-                <form action={handleSourceSync} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <input type="hidden" name="sourceId" value={source.id} />
-                  <label style={{ display: "grid", gap: "4px" }}>
-                    <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>Download URL override</span>
-                    <input className="input" name="url" placeholder="https://example.com/export.zip" style={{ padding: "6px 8px", fontSize: "12px" }} />
-                  </label>
-                  <label style={{ display: "grid", gap: "4px" }}>
-                    <span className="pill" style={{ fontSize: "10px", padding: "3px 8px" }}>Max notices</span>
-                    <input className="input" name="maxNotices" placeholder="500" style={{ padding: "6px 8px", fontSize: "12px" }} />
-                  </label>
-                  <button className="button button--secondary" type="submit" style={{ padding: "6px 12px", fontSize: "12px" }}>
-                    Run import
-                  </button>
-                </form>
+
+              {/* Configuration Forms */}
+              <Separator.Root style={{ marginTop: "24px", marginBottom: "24px", height: "2px", background: "var(--border)" }} />
+              <div style={{ paddingTop: "0" }}>
+                <h4 style={{ margin: "0 0 20px", fontSize: "15px", fontWeight: 600, color: "var(--text)", letterSpacing: "-0.01em" }}>Configuration</h4>
+                <div className="grid grid-2" style={{ gap: "24px" }}>
+                  {/* Source Settings Form */}
+                  <form action={handleSourceUpdate} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                    <input type="hidden" name="sourceId" value={source.id} />
+                    
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                        <Label.Root htmlFor={`integrationType-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                          Data Format
+                        </Label.Root>
+                        <HelpTooltip content="How the source provides data: Core API (direct API access), Bulk XML/JSON (downloadable files), or Manual URL (web scraping). Changing this may require updating the Auto URL." />
+                      </div>
+                      <Select.Root value={integrationType} onValueChange={setIntegrationType}>
+                        <input type="hidden" name="integrationType" value={integrationType} />
+                        <Select.Trigger
+                          id={`integrationType-${source.id}`}
+                          style={{ 
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 14px", 
+                            fontSize: "13px", 
+                            width: "100%",
+                            background: "#fff",
+                            border: "1px solid var(--border)",
+                            borderRadius: "0",
+                            transition: "all 0.2s ease",
+                            cursor: "pointer"
+                          }}
+                        >
+                          <Select.Value />
+                          <Select.Icon>
+                            <ChevronDownIcon style={{ width: "12px", height: "12px" }} />
+                          </Select.Icon>
+                        </Select.Trigger>
+                        <Select.Portal>
+                          <Select.Content
+                            style={{
+                              background: "#ffffff",
+                              border: "1px solid var(--border)",
+                              borderRadius: "0",
+                              boxShadow: "var(--shadow-md)",
+                              zIndex: 1000,
+                              minWidth: "var(--radix-select-trigger-width)",
+                              maxHeight: "300px",
+                              overflow: "auto"
+                            }}
+                          >
+                            <Select.Viewport>
+                              {integrationTypeOptions.map((option) => (
+                                <Select.Item
+                                  key={option.value}
+                                  value={option.value}
+                                  style={{
+                                    padding: "10px 14px",
+                                    fontSize: "13px",
+                                    cursor: "pointer",
+                                    outline: "none"
+                                  }}
+                                >
+                                  <Select.ItemText>{option.label}</Select.ItemText>
+                                </Select.Item>
+                              ))}
+                            </Select.Viewport>
+                          </Select.Content>
+                        </Select.Portal>
+                      </Select.Root>
+                    </div>
+
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                        <Label.Root htmlFor={`autoUrl-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                          Automatic Download URL
+                        </Label.Root>
+                        <HelpTooltip content="URL that the system will automatically download data from during scheduled syncs. Required for bulk XML/JSON sources. Leave empty for Core API sources." />
+                      </div>
+                      <input 
+                        id={`autoUrl-${source.id}`}
+                        className="input" 
+                        name="autoUrl" 
+                        defaultValue={source.autoUrl ?? ""} 
+                        placeholder="https://example.com/data/export.zip"
+                        style={{ 
+                          padding: "10px 14px", 
+                          fontSize: "13px", 
+                          width: "100%",
+                          background: "#fff",
+                          border: "1px solid var(--border)",
+                          borderRadius: "0",
+                          transition: "all 0.2s ease"
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = "var(--primary)";
+                          e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = "var(--border)";
+                          e.target.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ 
+                      padding: "14px", 
+                      background: "#fff", 
+                      border: "1px solid var(--border)",
+                      borderRadius: "0"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                        <Checkbox.Root
+                          name="active"
+                          defaultChecked={source.active}
+                          style={{
+                            margin: "2px 0 0",
+                            width: "18px",
+                            height: "18px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: source.active ? "var(--primary)" : "#fff",
+                            border: "1px solid",
+                            borderColor: source.active ? "var(--primary)" : "var(--border)",
+                            borderRadius: "0",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease"
+                          }}
+                        >
+                          <Checkbox.Indicator>
+                            <CheckIcon style={{ width: "14px", height: "14px", color: "#fff" }} />
+                          </Checkbox.Indicator>
+                        </Checkbox.Root>
+                        <Label.Root htmlFor={`active-${source.id}`} style={{ flex: 1, cursor: "pointer" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Enable Scheduled Syncs</span>
+                            <HelpTooltip content="When enabled, this source will be automatically synced during scheduled runs (daily at 2 AM). Disable to prevent automatic syncing." />
+                          </div>
+                          <p style={{ margin: 0, fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+                            Automatically sync this source during scheduled runs
+                          </p>
+                        </Label.Root>
+                      </div>
+                    </div>
+
+                    <button className="button" type="submit" style={{ 
+                      padding: "12px 20px", 
+                      fontSize: "13px", 
+                      fontWeight: 600, 
+                      alignSelf: "flex-start",
+                      borderRadius: "0",
+                      transition: "all 0.2s ease"
+                    }}>
+                      Save Configuration
+                    </button>
+                  </form>
+
+                  {/* Quick Sync Form */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                    <form action={handleRowSync} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      <input type="hidden" name="sourceId" value={source.id} />
+                      
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                          <Label.Root htmlFor={`maxNotices-sync-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                            Limit Records
+                          </Label.Root>
+                          <HelpTooltip content="Maximum number of opportunities to process during this sync. Leave empty to process all available records. Useful for testing or limiting large imports." />
+                        </div>
+                        <input 
+                          id={`maxNotices-sync-${source.id}`}
+                          className="input" 
+                          name="maxNotices" 
+                          type="number"
+                          placeholder="Leave empty for all records" 
+                          style={{ 
+                            padding: "10px 14px", 
+                            fontSize: "13px", 
+                            width: "100%",
+                            background: "#fff",
+                            border: "1px solid var(--border)",
+                            borderRadius: "0",
+                            transition: "all 0.2s ease"
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.borderColor = "var(--primary)";
+                            e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
+                          }}
+                          onBlur={(e) => {
+                            e.target.style.borderColor = "var(--border)";
+                            e.target.style.boxShadow = "none";
+                          }}
+                        />
+                      </div>
+
+                      <button className="button button--secondary" type="submit" style={{ 
+                        padding: "12px 20px", 
+                        fontSize: "13px", 
+                        fontWeight: 600,
+                        borderRadius: "0",
+                        transition: "all 0.2s ease"
+                      }}>
+                        Sync Now
+                      </button>
+                    </form>
+
+                    {/* Manual Import Form */}
+                    <Separator.Root style={{ marginTop: "20px", marginBottom: "20px", height: "2px", background: "var(--border)" }} />
+                    <div style={{ paddingTop: "0" }}>
+                      <h5 style={{ margin: "0 0 16px", fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                        Manual Import
+                      </h5>
+                      <form action={handleSourceSync} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                        <input type="hidden" name="sourceId" value={source.id} />
+                        
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                            <Label.Root htmlFor={`url-override-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                              Download URL
+                            </Label.Root>
+                            <HelpTooltip content="Override the automatic download URL for this single import. Use this to import from a specific file or URL that differs from the configured Auto URL." />
+                          </div>
+                          <input 
+                            id={`url-override-${source.id}`}
+                            className="input" 
+                            name="url" 
+                            type="url"
+                            placeholder="https://example.com/specific-export.zip" 
+                            style={{ 
+                              padding: "10px 14px", 
+                              fontSize: "13px", 
+                              width: "100%",
+                              background: "#fff",
+                              border: "1px solid var(--border)",
+                              borderRadius: "0",
+                              transition: "all 0.2s ease"
+                            }}
+                            onFocus={(e) => {
+                              e.target.style.borderColor = "var(--primary)";
+                              e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
+                            }}
+                            onBlur={(e) => {
+                              e.target.style.borderColor = "var(--border)";
+                              e.target.style.boxShadow = "none";
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                            <Label.Root htmlFor={`maxNotices-import-${source.id}`} style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", margin: 0 }}>
+                              Limit Records
+                            </Label.Root>
+                            <HelpTooltip content="Maximum number of opportunities to import from this file. Leave empty to import all records from the file." />
+                          </div>
+                          <input 
+                            id={`maxNotices-import-${source.id}`}
+                            className="input" 
+                            name="maxNotices" 
+                            type="number"
+                            placeholder="Leave empty for all records" 
+                            style={{ 
+                              padding: "10px 14px", 
+                              fontSize: "13px", 
+                              width: "100%",
+                              background: "#fff",
+                              border: "1px solid var(--border)",
+                              borderRadius: "0",
+                              transition: "all 0.2s ease"
+                            }}
+                            onFocus={(e) => {
+                              e.target.style.borderColor = "var(--primary)";
+                              e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
+                            }}
+                            onBlur={(e) => {
+                              e.target.style.borderColor = "var(--border)";
+                              e.target.style.boxShadow = "none";
+                            }}
+                          />
+                        </div>
+
+                        <button className="button button--secondary" type="submit" style={{ 
+                          padding: "12px 20px", 
+                          fontSize: "13px", 
+                          fontWeight: 600,
+                          borderRadius: "0",
+                          transition: "all 0.2s ease"
+                        }}>
+                          Run Import
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </td>

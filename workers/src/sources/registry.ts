@@ -5,8 +5,16 @@ import { hrsaDefinition } from "./hrsa";
 import { samGovDefinition } from "./samGov";
 import { tedEuDefinition } from "./tedEu";
 import { ungmDefinition } from "./ungm";
+import { undpDefinition } from "./undp";
 import { worldBankDefinition } from "./worldBank";
 import { edcDefinition } from "./edc";
+import { prozorroDefinition } from "./prozorro";
+import { contractsFinderDefinition } from "./contractsFinder";
+import { canadaBuysDefinition } from "./canadaBuys";
+import { ausTenderDefinition } from "./ausTender";
+import { adbDefinition } from "./adb";
+import { jetroDefinition } from "./jetro";
+import { chileCompraDefinition } from "./chileCompra";
 
 const SOURCE_DEFINITIONS: SourceDefinition[] = [
   grantsGovDefinition,
@@ -14,8 +22,16 @@ const SOURCE_DEFINITIONS: SourceDefinition[] = [
   hrsaDefinition,
   tedEuDefinition,
   ungmDefinition,
+  undpDefinition,
   worldBankDefinition,
-  edcDefinition
+  edcDefinition,
+  prozorroDefinition,
+  contractsFinderDefinition,
+  canadaBuysDefinition,
+  ausTenderDefinition,
+  adbDefinition,
+  jetroDefinition,
+  chileCompraDefinition
 ];
 
 export function getSourceDefinition(sourceId: SourceSystem): SourceDefinition | null {

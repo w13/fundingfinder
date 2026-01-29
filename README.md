@@ -124,13 +124,13 @@ Source-specific parsing logic lives in `workers/src/sources/`. When a source for
 update or add a source definition file there instead of touching the database layer. The normalization pipeline
 (`workers/src/normalize/opportunity.ts`) handles consistent scoring and storage.
 
-## Search Improvements
+## Search
 
-Search now uses D1 FTS5 for fast keyword lookup with ranked results. Modes:
+Search uses D1 FTS5 for fast keyword lookup with ranked results. Three search modes are supported via the `mode` query parameter:
 
-- `smart` (default): all terms must match
-- `any`: any term can match
-- `exact`: exact phrase
+- `smart` (default) - All terms must match
+- `any` - Any term can match
+- `exact` - Exact phrase match
 
 After applying the schema changes, backfill the FTS table if you already have data:
 
@@ -146,6 +146,21 @@ The D1 schema lives in `db/schema.sql` and includes:
 - `opportunities`, `opportunity_versions`, `documents`, `analyses`
 - `exclusion_rules`
 - `funding_sources`
+
+## Worker Entry Points
+
+The Worker (`workers/src/index.ts`) has three handlers:
+- `fetch()` - HTTP API routes
+- `scheduled()` - Daily cron (2 AM UTC) triggers `runSync` for all active sources
+- `queue()` - Processes PDF jobs from the queue
+
+## Integration Types
+
+Sources use different integration types defined in `workers/src/types.ts`:
+- `core_api` - Direct API integration (Grants.gov, SAM.gov, HRSA)
+- `ted_xml_zip` - TED Europe bulk XML archives
+- `bulk_xml_zip`, `bulk_xml`, `bulk_json`, `bulk_csv` - Bulk format handlers
+- `manual_url` - Manual URL-based imports
 
 ## API Endpoints (Worker)
 
@@ -191,10 +206,12 @@ Grant Sentinel aggregates data from multiple public funding sources (including G
 
 ## Local Development
 
+All commands should be run from the `fundingfinder/` directory:
+
 ```bash
 npm install
-npm run worker:dev  # Start the backend Worker
-npm run dev         # Start the Next.js frontend
+npm run worker:dev  # Start the backend Worker (localhost:8787)
+npm run dev         # Start the Next.js frontend (localhost:3000)
 ```
 
 Set `GRANT_SENTINEL_API_URL` (or `NEXT_PUBLIC_GRANT_SENTINEL_API_URL`) to your Worker endpoint so the dashboard can read data:
@@ -203,13 +220,27 @@ Set `GRANT_SENTINEL_API_URL` (or `NEXT_PUBLIC_GRANT_SENTINEL_API_URL`) to your W
 export GRANT_SENTINEL_API_URL="http://localhost:8787"
 ```
 
-### Frontend Deployment
+**Note**: The frontend dev server runs on port 3000 by default. To stop it, use `Ctrl+C` in the terminal or kill the process on port 3000.
 
-The frontend is deployed to Cloudflare Workers using `@opennextjs/cloudflare`:
+### Build & Deploy
+
+**Frontend Deployment** (deployed to Cloudflare Workers using `@opennextjs/cloudflare`):
 
 ```bash
-npm run build:cloudflare
-npm run frontend:deploy
+npm run build:cloudflare    # Build frontend for Cloudflare
+npm run frontend:deploy      # Deploy frontend
+```
+
+**Backend Deployment**:
+
+```bash
+npm run worker:deploy        # Deploy backend Worker
+```
+
+**Type Checking**:
+
+```bash
+npm run typecheck            # TypeScript check (tsc --noEmit)
 ```
 
 ## Cloudflare Setup

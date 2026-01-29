@@ -6,6 +6,7 @@ export const INTEGRATION_TYPES = [
   "bulk_xml_zip",
   "bulk_xml",
   "bulk_json",
+  "bulk_csv",
   "manual_url"
 ] as const;
 
@@ -113,6 +114,8 @@ export interface Env {
   GRANTS_GOV_API_KEY?: string;
   SAM_GOV_API_KEY?: string;
   HRSA_API_KEY?: string;
+  AUSTENDER_API_KEY?: string;
+  CHILE_COMPRA_API_KEY?: string;
   
   // Configuration
   GRANTS_GOV_API_URL?: string;
@@ -127,4 +130,79 @@ export interface Env {
   PRIORITY_AGENCIES?: string;
   POLITE_DELAY_MS?: string;
   NOTIFICATION_WEBHOOK_URL?: string;
+}
+
+export interface SyncSourcePayload {
+  sourceId: string;
+  options: { url?: string; maxNotices?: number };
+}
+
+export type TaskPayload = SyncSourcePayload;
+
+export interface OpportunityQuery {
+  query?: string;
+  source?: SourceSystem;
+  minScore?: number;
+  limit?: number;
+  mode?: "smart" | "exact" | "any";
+}
+
+export interface OpportunityListItem {
+  id: string;
+  opportunityId: string;
+  source: SourceSystem;
+  title: string;
+  agency: string | null;
+  status: string | null;
+  summary: string | null;
+  postedDate: string | null;
+  dueDate: string | null;
+  keywordScore: number;
+  feasibilityScore: number | null;
+  suitabilityScore: number | null;
+  profitabilityScore: number | null;
+}
+
+export interface OpportunityDetail extends OpportunityListItem {
+  eligibility: string | null;
+  url: string | null;
+  forProfitEligible: boolean;
+  smallBusinessEligible: boolean;
+  analysisSummary: string[];
+  constraints: string[];
+  documents: Array<{
+    id: string;
+    documentUrl: string;
+    r2Key: string;
+    sectionMap: SectionSlices | null;
+  }>;
+}
+
+export interface ShortlistItem {
+  shortlistId: string;
+  opportunityRecordId: string;
+  opportunityId: string;
+  source: SourceSystem;
+  title: string;
+  agency: string | null;
+  summary: string | null;
+  postedDate: string | null;
+  dueDate: string | null;
+  feasibilityScore: number | null;
+  suitabilityScore: number | null;
+  profitabilityScore: number | null;
+  analysisSummary: string[];
+  constraints: string[];
+  analyzed: boolean;
+}
+
+export interface ShortlistAnalysisCandidate {
+  shortlistId: string;
+  opportunityId: string;
+  source: SourceSystem;
+  title: string;
+  summary: string | null;
+  eligibility: string | null;
+  textExcerpt: string | null;
+  sectionMap: SectionSlices | null;
 }

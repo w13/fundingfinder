@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import type { Opportunity } from "../lib/types";
-import { formatSourceLabel } from "../lib/format";
-import { addShortlist } from "../lib/shortlist";
+import type { Opportunity } from "../lib/domain/types";
+import { formatSourceLabel } from "../lib/domain/format";
+import { addShortlist } from "../lib/api/shortlist";
 import { ScoreBadge } from "./ScoreBadge";
 
 type OpportunityListProps = {
-  items: Opportunity[];
+  items?: Opportunity[];
   shortlistKeys?: string[];
   showShortlistActions?: boolean;
 };
 
-export default function OpportunityList({ items, shortlistKeys = [], showShortlistActions = false }: OpportunityListProps) {
-  const shortlistSet = new Set(shortlistKeys);
+export default function OpportunityList({ items = [], shortlistKeys = [], showShortlistActions = false }: OpportunityListProps) {
+  const shortlistSet = new Set(shortlistKeys ?? []);
 
   async function handleShortlist(formData: FormData) {
     "use server";

@@ -1,5 +1,5 @@
-import type { SourceOption } from "./types";
-import { getApiBaseUrl } from "./constants";
+import type { SourceOption } from "../domain/types";
+import { getApiBaseUrl } from "../domain/constants";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -14,3 +14,4 @@ export async function fetchSourceOptions(): Promise<{ sources: SourceOption[]; w
   const payload = (await response.json()) as { sources: SourceOption[] };
   return { sources: payload.sources ?? [] };
 }
+

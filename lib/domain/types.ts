@@ -67,7 +67,7 @@ export type FundingSource = {
   name: string;
   country: string | null;
   homepage: string | null;
-  integrationType: "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "manual_url";
+  integrationType: "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "bulk_csv" | "manual_url";
   autoUrl: string | null;
   expectedResults: number | null;
   active: boolean;
@@ -99,4 +99,8 @@ export type ShortlistItem = {
   feasibilityScore: number | null;
   suitabilityScore: number | null;
   profitabilityScore: number | null;
+  analysisSummary: string[];
+  constraints: string[];
+  analyzed: boolean;
 };
+

@@ -2,7 +2,7 @@ import type { Env, ExclusionRule, OpportunityRecord, PdfJob, SourceSystem } from
 import { buildAgencyFilters } from "../filters";
 import { buildOpportunityRecord, type NormalizedInput } from "../normalize/opportunity";
 import { politeFetch } from "./http";
-import { extractItems } from "./mappingUtils";
+import { extractItems } from "../utils/mapping";
 
 export interface ConnectorConfig {
   source: SourceSystem;
@@ -25,8 +25,7 @@ export async function syncGenericSource(
     const response = await politeFetch(url, init, env, ctx);
 
     if (!response.ok) {
-      console.warn(`${config.source} sync failed: HTTP ${response.status}`);
-      return { records: [], pdfJobs: [] };
+      throw new Error(`${config.source} sync failed: HTTP ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();

@@ -1,11 +1,14 @@
 "use server";
 
-import { syncFundingSource, updateFundingSource, triggerIngestionSync, createExclusionRule, disableExclusionRule } from "../../lib/admin";
+import { syncFundingSource, updateFundingSource, triggerIngestionSync, createExclusionRule, disableExclusionRule, toggleAllSources } from "../../lib/api/admin";
 import { revalidatePath } from "next/cache";
+import { logServerError } from "../../lib/errors/serverErrorLogger";
 
 export async function handleSync(formData: FormData) {
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   if (!sourceId) return;
+  // Enable the source when manually syncing
+  await updateFundingSource(sourceId, { active: true });
   await syncFundingSource(sourceId, {});
   revalidatePath("/sources");
 }
@@ -18,7 +21,7 @@ export async function handleToggle(formData: FormData) {
   revalidatePath("/sources");
 }
 
-export async function handleSyncAll() {
+export async function handleSyncAll(formData?: FormData) {
   await triggerIngestionSync();
   revalidatePath("/sources");
 }
@@ -28,6 +31,8 @@ export async function handleSourceSync(formData: FormData) {
   const url = String(formData.get("url") ?? "").trim();
   const maxNotices = Number(formData.get("maxNotices") ?? "");
   if (!sourceId) return;
+  // Enable the source when manually syncing
+  await updateFundingSource(sourceId, { active: true });
   await syncFundingSource(sourceId, {
     url: url || undefined,
     maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
@@ -42,7 +47,7 @@ export async function handleSourceUpdate(formData: FormData) {
   const active = formData.get("active") === "on";
   if (!sourceId) return;
   await updateFundingSource(sourceId, {
-    integrationType: integrationType as "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "manual_url",
+    integrationType: integrationType as "core_api" | "ted_xml_zip" | "bulk_xml_zip" | "bulk_xml" | "bulk_json" | "bulk_csv" | "manual_url",
     autoUrl: autoUrl ? autoUrl : null,
     active
   });
@@ -53,6 +58,8 @@ export async function handleRowSync(formData: FormData) {
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const maxNotices = Number(formData.get("maxNotices") ?? "");
   if (!sourceId) return;
+  // Enable the source when manually syncing
+  await updateFundingSource(sourceId, { active: true });
   await syncFundingSource(sourceId, {
     maxNotices: Number.isNaN(maxNotices) ? undefined : maxNotices
   });
@@ -72,4 +79,59 @@ export async function handleDisableRule(formData: FormData) {
   if (!id) return;
   await disableExclusionRule(id);
   revalidatePath("/sources");
+}
+
+export async function handleToggleAll(formData: FormData) {
+  const active = String(formData.get("active") ?? "") === "true";
+  
+  try {
+    console.log(`[handleToggleAll] Starting - active=${active}`);
+    
+    // Log environment info for debugging
+    const hasProcess = typeof process !== 'undefined';
+    const hasEnv = hasProcess && typeof process.env !== 'undefined';
+    const hasApiKey = hasEnv && (process.env.ADMIN_API_KEY || process.env.GRANT_SENTINEL_ADMIN_KEY);
+    console.log(`[handleToggleAll] Environment - hasProcess: ${hasProcess}, hasEnv: ${hasEnv}, hasApiKey: ${!!hasApiKey}`);
+    
+    if (hasEnv) {
+      const envKeys = Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY') || k.includes('ADMIN'));
+      console.log(`[handleToggleAll] Relevant env keys: ${envKeys.join(', ') || 'none'}`);
+    }
+    
+    const success = await toggleAllSources(active);
+    
+    if (!success) {
+      const errorMsg = `Failed to toggle all sources to ${active} - API call returned false`;
+      console.error(`[handleToggleAll] ${errorMsg}`);
+      logServerError(new Error(errorMsg), {
+        component: "handleToggleAll",
+        action: "toggleAll",
+        active,
+        success: false
+      });
+      throw new Error(errorMsg);
+    }
+    
+    console.log(`[handleToggleAll] Success - toggled all sources to ${active}`);
+    revalidatePath("/sources");
+  } catch (error) {
+    const errorDetails = {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      active
+    };
+    
+    console.error(`[handleToggleAll] Error caught:`, errorDetails);
+    logServerError(error, {
+      component: "handleToggleAll",
+      action: "toggleAll",
+      active,
+      errorDetails
+    });
+    
+    // Re-throw with a more descriptive message for production
+    const userMessage = `Failed to toggle all sources: ${error instanceof Error ? error.message : String(error)}`;
+    throw new Error(userMessage);
+  }
 }

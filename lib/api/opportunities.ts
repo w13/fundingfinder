@@ -1,5 +1,5 @@
-import type { OpportunityDetail, OpportunitySearchResponse } from "./types";
-import { getApiBaseUrl } from "./constants";
+import type { OpportunityDetail, OpportunitySearchResponse } from "../domain/types";
+import { getApiBaseUrl } from "../domain/constants";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -47,3 +47,4 @@ export async function fetchOpportunityById(id: string): Promise<OpportunityDetai
   const payload = (await response.json()) as { item?: OpportunityDetail };
   return payload.item ?? null;
 }
+

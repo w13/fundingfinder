@@ -1,5 +1,5 @@
-import type { AdminSummary, ExclusionRule, FundingSource } from "./types";
-import { getApiBaseUrl, getAuthHeaders } from "./constants";
+import type { AdminSummary, ExclusionRule, FundingSource } from "../domain/types";
+import { getApiBaseUrl, getAuthHeaders } from "../domain/constants";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -48,9 +48,17 @@ export async function fetchFundingSources(): Promise<{ sources: FundingSource[];
     return { sources: [], warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
   try {
+    // GET requests to admin endpoints don't require auth (per routes/admin.ts)
+    // Only use auth headers if we're in a server context
+    const headers: HeadersInit = {};
+    if (typeof window === "undefined") {
+      // Server-side: include auth headers
+      Object.assign(headers, getAuthHeaders());
+    }
+
     const response = await fetch(new URL("/api/admin/sources", API_BASE_URL), {
       cache: "no-store",
-      headers: getAuthHeaders()
+      headers
     });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
@@ -124,5 +132,64 @@ export async function triggerIngestionSync(): Promise<boolean> {
     headers: getAuthHeaders()
   });
   return response.ok;
+}
+
+export async function toggleAllSources(active: boolean): Promise<boolean> {
+  console.log(`[toggleAllSources] Starting - active=${active}, API_BASE_URL=${API_BASE_URL}`);
+
+  if (!API_BASE_URL) {
+    console.error("[toggleAllSources] API_BASE_URL is not set");
+    return false;
+  }
+
+  try {
+    const authHeaders = getAuthHeaders();
+    const hasAuth = Object.keys(authHeaders).length > 0;
+
+    console.log(`[toggleAllSources] Auth headers: ${hasAuth ? "present" : "missing"}`);
+
+    if (!hasAuth) {
+      console.warn("[toggleAllSources] ADMIN_API_KEY not set - API call may fail with 401 Unauthorized");
+      console.warn("[toggleAllSources] To fix: Set ADMIN_API_KEY secret for the frontend worker: wrangler secret put ADMIN_API_KEY --name grant-sentinel-frontend");
+    }
+
+    const url = new URL("/api/admin/sources/toggle-all", API_BASE_URL);
+    console.log(`[toggleAllSources] Calling: ${url.toString()}`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders
+      },
+      body: JSON.stringify({ active })
+    });
+
+    console.log(`[toggleAllSources] Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error(`[toggleAllSources] Failed: ${response.status} ${errorText}`);
+
+      if (response.status === 401) {
+        console.error("[toggleAllSources] Authentication failed. Make sure ADMIN_API_KEY is set for the frontend worker.");
+        console.error("[toggleAllSources] Run: wrangler secret put ADMIN_API_KEY --name grant-sentinel-frontend");
+      }
+
+      return false;
+    }
+
+    const result = await response.json().catch(() => ({}));
+    console.log(`[toggleAllSources] Success: updated ${result.updated ?? 0} sources`);
+    return true;
+  } catch (error) {
+    const errorDetails = {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    };
+    console.error("[toggleAllSources] Exception:", errorDetails);
+    return false;
+  }
 }
 

@@ -1,6 +1,6 @@
 import type { NormalizedInput } from "../normalize/opportunity";
 import type { SourceDefinition } from "./types";
-import { toNullableString, toString } from "../connectors/mappingUtils";
+import { toNullableString, toString } from "../utils/mapping";
 
 export const hrsaDefinition: SourceDefinition = {
   id: "hrsa",

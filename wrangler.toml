@@ -3,6 +3,9 @@ main = "workers/src/index.ts"
 compatibility_date = "2026-01-24"
 compatibility_flags = ["nodejs_compat"]
 
+[build]
+command = ""
+
 [vars]
 COMPANY_PROFILE = "Private-sector digital health company focused on AI-driven clinical tooling."
 EXCLUDED_BUREAUS = "Forestry, Agriculture"

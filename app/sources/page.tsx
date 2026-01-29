@@ -1,9 +1,10 @@
-import { fetchFundingSources, fetchAdminSummary, fetchExclusionRules } from "../../lib/admin";
-import SourceRowWrapper from "../../components/SourceRowWrapper";
-import OpportunityList from "../../components/OpportunityList";
-import { INTEGRATION_TYPE_OPTIONS } from "../../lib/constants";
-import { fetchOpportunities } from "../../lib/opportunities";
-import { handleSync, handleToggle, handleSyncAll, handleSourceSync, handleSourceUpdate, handleRowSync, handleAddRule, handleDisableRule } from "./actions";
+import { fetchFundingSources, fetchAdminSummary, fetchExclusionRules } from "../../lib/api/admin";
+import SourcesTable from "../../components/SourcesTable";
+import SyncAllButton from "../../components/SyncAllButton";
+import ToggleAllButton from "../../components/ToggleAllButton";
+import { INTEGRATION_TYPE_OPTIONS } from "../../lib/domain/constants";
+import { handleSync, handleToggle, handleSyncAll, handleSourceSync, handleSourceUpdate, handleRowSync, handleAddRule, handleDisableRule, handleToggleAll } from "./actions";
+import { logServerError } from "../../lib/errors/serverErrorLogger";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
@@ -13,6 +14,8 @@ type SyncStatus = "syncing" | "scheduled" | "success" | "failed" | "manual" | "i
 
 function getSyncStatus(source: Awaited<ReturnType<typeof fetchFundingSources>>["sources"][0]): SyncStatus {
   if (!source.active) return "inactive";
+  
+  if (source.lastStatus === "syncing") return "syncing";
   
   if (!source.lastSync) return "never";
   
@@ -77,47 +80,53 @@ function getStatusLabel(status: SyncStatus): string {
   }
 }
 
-export default async function SourcesPage({ searchParams }: PageProps) {
-  const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
-  
-  // Fetch data with error handling
-  let sourcesResult: Awaited<ReturnType<typeof fetchFundingSources>>;
-  let summaryResult: Awaited<ReturnType<typeof fetchAdminSummary>>;
-  let exclusionsResult: Awaited<ReturnType<typeof fetchExclusionRules>>;
-  let highSignal: Awaited<ReturnType<typeof fetchOpportunities>>;
+// Force dynamic rendering to avoid static generation issues
+export const dynamic = "force-dynamic";
 
+export default async function SourcesPage({ searchParams }: PageProps) {
   try {
-    [sourcesResult, summaryResult, exclusionsResult, highSignal] = await Promise.all([
-      fetchFundingSources().catch((err) => {
-        console.error("Error fetching sources:", err);
-        return { sources: [], warning: `Failed to load sources: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchFundingSources>>;
-      }),
-      fetchAdminSummary().catch((err) => {
-        console.error("Error fetching summary:", err);
-        return { summary: null, warning: `Failed to load summary: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchAdminSummary>>;
-      }),
-      fetchExclusionRules().catch((err) => {
-        console.error("Error fetching exclusions:", err);
-        return { rules: [], warning: `Failed to load filters: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchExclusionRules>>;
-      }),
-      fetchOpportunities({ minScore: "75", limit: 5 }).catch((err) => {
-        console.error("Error fetching opportunities:", err);
-        return { items: [], warning: `Failed to load opportunities: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchOpportunities>>;
-      })
+    const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
+    
+    // Fetch data with error handling
+    let sourcesResult: Awaited<ReturnType<typeof fetchFundingSources>>;
+    let summaryResult: Awaited<ReturnType<typeof fetchAdminSummary>>;
+    let exclusionsResult: Awaited<ReturnType<typeof fetchExclusionRules>>;
+
+    try {
+      [sourcesResult, summaryResult, exclusionsResult] = await Promise.all([
+        fetchFundingSources().catch((err) => {
+          logServerError(err, { component: "SourcesPage", action: "fetchFundingSources" });
+          return { sources: [], warning: `Failed to load sources: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchFundingSources>>;
+        }),
+        fetchAdminSummary().catch((err) => {
+          logServerError(err, { component: "SourcesPage", action: "fetchAdminSummary" });
+          return { summary: null, warning: `Failed to load summary: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchAdminSummary>>;
+        }),
+        fetchExclusionRules().catch((err) => {
+          logServerError(err, { component: "SourcesPage", action: "fetchExclusionRules" });
+          return { rules: [], warning: `Failed to load filters: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchExclusionRules>>;
+        })
     ]);
   } catch (error) {
-    console.error("Critical error loading sources page:", error);
+    logServerError(error, { component: "SourcesPage", action: "fetchData" });
     // Fallback to empty data
     sourcesResult = { sources: [], warning: "Failed to load page data" };
     summaryResult = { summary: null, warning: "Failed to load page data" };
     exclusionsResult = { rules: [], warning: "Failed to load page data" };
-    highSignal = { items: [], warning: "Failed to load page data" };
   }
 
   const sources = sourcesResult.sources;
 
-  // Sort alphabetically only, don't reorder on toggle
-  const sortedSources = [...sources].sort((a, b) => a.name.localeCompare(b.name));
+  // Compute sync status, color, and label for each source on the server
+  const sourcesWithStatus = sources.map((source) => {
+    const status = getSyncStatus(source);
+    return {
+      ...source,
+      syncStatus: status,
+      statusColor: getStatusColor(status),
+      statusLabel: getStatusLabel(status)
+    };
+  });
 
   return (
     <div className="grid">
@@ -127,11 +136,12 @@ export default async function SourcesPage({ searchParams }: PageProps) {
             <h2 className="hero__title" style={{ margin: 0, marginBottom: "8px" }}>Sources</h2>
             <p className="hero__subtitle" style={{ margin: 0 }}>Manage and monitor funding source integrations</p>
           </div>
-          <form action={handleSyncAll} style={{ margin: 0 }}>
-            <button className="button" type="submit">
-              Sync All Sources
-            </button>
-          </form>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <SyncAllButton 
+              action={handleSyncAll} 
+              activeSources={sources.filter(s => s.active).map(s => ({ id: s.id, name: s.name }))}
+            />
+          </div>
         </div>
         {sourcesResult.warning ? (
           <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", padding: "12px 16px", marginBottom: "24px" }}>
@@ -141,84 +151,50 @@ export default async function SourcesPage({ searchParams }: PageProps) {
       </section>
 
       {/* Overview Stats */}
-      <div className="grid grid-3" style={{ marginBottom: "24px", gap: "8px" }}>
-        <div className="card" style={{ padding: "12px 16px" }}>
-          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total opportunities</p>
-          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "8px", marginBottom: "24px" }}>
+        <div className="card" style={{ padding: "10px 12px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total opportunities</p>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
         </div>
-        <div className="card" style={{ padding: "12px 16px" }}>
-          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>For-profit eligible</p>
-          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
+        <div className="card" style={{ padding: "10px 12px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>For-profit eligible</p>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
         </div>
-        <div className="card" style={{ padding: "12px 16px" }}>
-          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Analyzed w/ AI</p>
-          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
+        <div className="card" style={{ padding: "10px 12px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Analyzed w/ AI</p>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
         </div>
-        <div className="card" style={{ padding: "12px 16px" }}>
-          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>High feasibility</p>
-          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
+        <div className="card" style={{ padding: "10px 12px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>High feasibility</p>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
         </div>
-        <div className="card" style={{ padding: "12px 16px" }}>
-          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Last update</p>
-          <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
+        <div className="card" style={{ padding: "10px 12px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Last update</p>
+          <h3 style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
         </div>
-        <div className="card" style={{ padding: "12px 16px" }}>
-          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active sources</p>
-          <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{sources.filter(s => s.active).length}</h3>
+        <div className="card" style={{ padding: "10px 12px" }}>
+          <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active sources</p>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{sources.filter(s => s.active).length}</h3>
         </div>
-      </div>
-
-      {/* High-signal opportunities */}
-      <div className="card" style={{ marginBottom: "24px" }}>
-        <h3 style={{ marginTop: 0, marginBottom: "16px" }}>High-signal opportunities</h3>
-        <OpportunityList items={highSignal.items} />
       </div>
 
       {/* Sources Table */}
-      <div className="card" style={{ padding: "0", overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table className="table" style={{ margin: 0 }}>
-            <thead>
-              <tr>
-                <th style={{ padding: "12px 16px", textAlign: "center", width: "120px" }}>Enable</th>
-                <th style={{ padding: "12px 16px", textAlign: "left" }}>Source</th>
-                <th style={{ padding: "12px 16px", textAlign: "left" }}>Status</th>
-                <th style={{ padding: "12px 16px", textAlign: "left", width: "140px" }}>Last Sync</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Ingested</th>
-                <th style={{ padding: "12px 16px", textAlign: "left" }}>Type</th>
-                <th style={{ padding: "12px 16px", textAlign: "center", width: "120px" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedSources.map((source) => {
-                const status = getSyncStatus(source);
-                const statusColor = getStatusColor(status);
-                const statusLabel = getStatusLabel(status);
-
-                return (
-                  <SourceRowWrapper
-                    key={source.id}
-                    source={{
-                      ...source,
-                      expectedResults: source.expectedResults ?? null,
-                      homepage: source.homepage ?? null
-                    }}
-                    status={status}
-                    statusColor={statusColor}
-                    statusLabel={statusLabel}
-                    handleSync={handleSync}
-                    handleToggle={handleToggle}
-                    handleSourceSync={handleSourceSync}
-                    handleSourceUpdate={handleSourceUpdate}
-                    handleRowSync={handleRowSync}
-                    integrationTypeOptions={INTEGRATION_TYPE_OPTIONS}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SourcesTable
+        sources={sourcesWithStatus}
+        handleSync={handleSync}
+        handleToggle={handleToggle}
+        handleSourceSync={handleSourceSync}
+        handleSourceUpdate={handleSourceUpdate}
+        handleRowSync={handleRowSync}
+        integrationTypeOptions={INTEGRATION_TYPE_OPTIONS}
+        toggleAllComponent={
+          <ToggleAllButton
+            action={handleToggleAll}
+            allActive={sources.length > 0 && sources.every(s => s.active)}
+            totalCount={sources.length}
+          />
+        }
+      />
 
       {/* Filters/Exclusions */}
       <div className="card" style={{ marginTop: "24px" }}>
@@ -306,4 +282,8 @@ export default async function SourcesPage({ searchParams }: PageProps) {
       </div>
     </div>
   );
+  } catch (error) {
+    logServerError(error, { component: "SourcesPage", action: "render" });
+    throw error; // Re-throw to let Next.js error boundary handle it
+  }
 }

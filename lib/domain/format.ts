@@ -5,3 +5,4 @@ export function formatSourceLabel(source: string): string {
     .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
     .join(" ");
 }
+

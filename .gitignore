@@ -6,3 +6,7 @@ node_modules/
 dist/
 coverage/
 tsconfig.tsbuildinfo
+.open-next/
+out/
+playwright-report/
+test-results/

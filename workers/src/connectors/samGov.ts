@@ -1,7 +1,7 @@
 import type { Env, ExclusionRule, OpportunityRecord, PdfJob } from "../types";
 import { syncGenericSource } from "./base";
 import { extractSamGovDocuments, mapSamGov } from "../sources/samGov";
-import { extractItems } from "./mappingUtils";
+import { extractItems } from "../utils/mapping";
 
 export async function syncSamGov(
   env: Env,

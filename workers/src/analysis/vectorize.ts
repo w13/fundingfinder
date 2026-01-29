@@ -1,7 +1,9 @@
 import type { Env, SourceSystem } from "../types";
 import { normalizeText } from "../utils";
 
-const MODEL = "@cf/baai/bge-large-en-v1.5";
+// Using cheaper embedding model: bge-small-en-v1.5
+// $0.020 per M input tokens (vs $0.204 for large)
+const MODEL = "@cf/baai/bge-small-en-v1.5";
 
 export async function indexOpportunity(
   env: Env,

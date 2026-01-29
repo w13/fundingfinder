@@ -1,20 +1,20 @@
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
-import { fetchOpportunityById } from "../../../lib/opportunities";
+import { fetchOpportunityById } from "../../../lib/api/opportunities";
 import { ScoreBadge } from "../../../components/ScoreBadge";
-import { formatSourceLabel } from "../../../lib/format";
-import { addShortlist } from "../../../lib/shortlist";
+import { formatSourceLabel } from "../../../lib/domain/format";
+import { logServerError } from "../../../lib/errors/serverErrorLogger";
+import { handleShortlist } from "./actions";
 
-export default async function OpportunityPage({ params }: { params: { id: string } }) {
-  const item = await fetchOpportunityById(params.id);
+// Force dynamic rendering
+export const dynamic = "force-dynamic";
 
-  async function handleShortlist() {
-    "use server";
-    if (!item) return;
-    await addShortlist(item.opportunityId, item.source);
-    revalidatePath(`/opportunities/${params.id}`);
-    revalidatePath("/shortlist");
-  }
+export default async function OpportunityPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  try {
+    const resolvedParams = params instanceof Promise ? await params : params;
+    const item = await fetchOpportunityById(resolvedParams.id).catch((err) => {
+      logServerError(err, { component: "OpportunityPage", action: "fetchOpportunityById", id: resolvedParams.id });
+      return null;
+    });
 
   if (!item) {
     return (
@@ -46,6 +46,9 @@ export default async function OpportunityPage({ params }: { params: { id: string
           <ScoreBadge label="Profitability" value={item.profitabilityScore} />
         </div>
         <form action={handleShortlist} style={{ marginTop: "12px" }}>
+          <input type="hidden" name="opportunityId" value={item.opportunityId} />
+          <input type="hidden" name="source" value={item.source} />
+          <input type="hidden" name="pageId" value={resolvedParams.id} />
           <button className="button button--secondary" type="submit">
             Add to shortlist
           </button>
@@ -56,8 +59,8 @@ export default async function OpportunityPage({ params }: { params: { id: string
         <h3 style={{ margin: 0 }}>AI Feasibility Summary</h3>
         {item.analysisSummary.length > 0 ? (
           <ul>
-            {item.analysisSummary.map((bullet) => (
-              <li key={bullet}>{bullet}</li>
+            {item.analysisSummary.map((bullet, index) => (
+              <li key={`summary-${index}`}>{bullet}</li>
             ))}
           </ul>
         ) : (
@@ -71,8 +74,8 @@ export default async function OpportunityPage({ params }: { params: { id: string
         <h3 style={{ margin: 0 }}>Key Constraints</h3>
         {item.constraints.length > 0 ? (
           <ul>
-            {item.constraints.map((constraint) => (
-              <li key={constraint}>{constraint}</li>
+            {item.constraints.map((constraint, index) => (
+              <li key={`constraint-${index}`}>{constraint}</li>
             ))}
           </ul>
         ) : (
@@ -130,4 +133,9 @@ export default async function OpportunityPage({ params }: { params: { id: string
       ) : null}
     </div>
   );
+  } catch (error) {
+    const resolvedParams = params instanceof Promise ? await params : params;
+    logServerError(error, { component: "OpportunityPage", action: "render", id: resolvedParams.id });
+    throw error; // Re-throw to let Next.js error boundary handle it
+  }
 }

@@ -63,6 +63,9 @@ export interface ShortlistItem {
   feasibilityScore: number | null;
   suitabilityScore: number | null;
   profitabilityScore: number | null;
+  analysisSummary: string[];
+  constraints: string[];
+  analyzed: boolean;
 }
 
 export interface ShortlistAnalysisCandidate {
@@ -464,7 +467,10 @@ export async function listShortlist(db: D1Database): Promise<ShortlistItem[]> {
         o.due_date as dueDate,
         a.feasibility_score as feasibilityScore,
         a.suitability_score as suitabilityScore,
-        a.profitability_score as profitabilityScore
+        a.profitability_score as profitabilityScore,
+        a.summary as analysisSummary,
+        a.constraints as analysisConstraints,
+        a.created_at as analysisCreatedAt
       FROM shortlist s
       JOIN opportunities o ON o.opportunity_id = s.opportunity_id AND o.source = s.source
       LEFT JOIN LatestAnalyses a
@@ -473,9 +479,43 @@ export async function listShortlist(db: D1Database): Promise<ShortlistItem[]> {
         AND a.rn = 1
       ORDER BY s.created_at DESC`
     )
-    .all<ShortlistItem>();
+    .all<{
+      shortlistId: string;
+      opportunityRecordId: string;
+      opportunityId: string;
+      source: SourceSystem;
+      title: string;
+      agency: string | null;
+      summary: string | null;
+      postedDate: string | null;
+      dueDate: string | null;
+      feasibilityScore: number | null;
+      suitabilityScore: number | null;
+      profitabilityScore: number | null;
+      analysisSummary: string | null;
+      analysisConstraints: string | null;
+      analysisCreatedAt: string | null;
+    }>();
 
-  return results.results ?? [];
+  return (
+    results.results?.map((row) => ({
+      shortlistId: row.shortlistId,
+      opportunityRecordId: row.opportunityRecordId,
+      opportunityId: row.opportunityId,
+      source: row.source,
+      title: row.title,
+      agency: row.agency,
+      summary: row.summary,
+      postedDate: row.postedDate,
+      dueDate: row.dueDate,
+      feasibilityScore: row.feasibilityScore,
+      suitabilityScore: row.suitabilityScore,
+      profitabilityScore: row.profitabilityScore,
+      analysisSummary: safeJsonParse<string[]>(row.analysisSummary) ?? [],
+      constraints: safeJsonParse<string[]>(row.analysisConstraints) ?? [],
+      analyzed: row.analysisCreatedAt !== null
+    })) ?? []
+  );
 }
 
 export async function addShortlist(db: D1Database, opportunityId: string, source: SourceSystem): Promise<{ id: string; created: boolean }> {
@@ -817,4 +857,12 @@ export async function updateFundingSourceSync(
       id
     )
     .run();
+}
+
+export async function toggleAllFundingSources(db: D1Database, active: boolean): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE funding_sources SET active = ?, updated_at = ? WHERE active != ?`)
+    .bind(active ? 1 : 0, new Date().toISOString(), active ? 1 : 0)
+    .run();
+  return result.meta?.changes ?? 0;
 }

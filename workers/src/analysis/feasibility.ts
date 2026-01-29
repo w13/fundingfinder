@@ -1,7 +1,9 @@
 import type { Env, AnalysisResult, SectionSlices } from "../types";
 import { normalizeText, safeJsonParse } from "../utils";
 
-const MODEL = "@cf/meta/llama-3.3-70b";
+// Using the cheapest and fastest model: llama-3.2-1b-instruct
+// $0.027 per M input tokens, $0.201 per M output tokens
+const MODEL = "@cf/meta/llama-3.2-1b-instruct";
 
 export async function analyzeFeasibility(
   env: Env,
@@ -54,10 +56,26 @@ export async function analyzeFeasibility(
 
 function extractText(response: unknown): string {
   if (typeof response === "string") return response;
+  if (response === null || response === undefined) return "";
+  if (typeof response !== "object") return "";
+
   const record = response as Record<string, unknown>;
+
+  // Handle direct response field
   if (typeof record.response === "string") return record.response;
-  const choices = record.choices as Array<{ message?: { content?: string } }> | undefined;
-  if (choices?.[0]?.message?.content) return choices[0].message?.content ?? "";
+
+  // Handle OpenAI-style choices array
+  if (Array.isArray(record.choices)) {
+    const firstChoice = record.choices[0];
+    if (firstChoice && typeof firstChoice === "object") {
+      const message = (firstChoice as Record<string, unknown>).message;
+      if (message && typeof message === "object") {
+        const content = (message as Record<string, unknown>).content;
+        if (typeof content === "string") return content;
+      }
+    }
+  }
+
   return "";
 }
 

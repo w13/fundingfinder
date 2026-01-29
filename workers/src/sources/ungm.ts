@@ -4,29 +4,16 @@ export const ungmDefinition: SourceDefinition = {
   id: "ungm",
   name: "UN Global Marketplace",
   integrationType: "manual_url",
-  parsing: {
-    jsonKeys: {
-      id: ["noticeId", "id", "tenderId", "reference", "refNo", "referenceNumber"],
-      title: ["title", "noticeTitle", "subject", "name"],
-      summary: ["description", "summary", "details", "shortDescription"],
-      agency: ["organization", "agency", "buyer", "issuer", "procuringEntity"],
-      status: ["status", "noticeStatus", "stage"],
-      url: ["noticeUrl", "url", "link", "detailUrl"],
-      postedDate: ["publishedDate", "datePublished", "postedDate", "publishDate"],
-      dueDate: ["deadlineDate", "closingDate", "dueDate", "dateClosing"]
+  scraping: {
+    itemSelector: "div.result-item, table#tblNotices tr",
+    fields: {
+      title: { selector: "a.notice-title, .title a" },
+      url: { selector: "a.notice-title, .title a", attr: "href" },
+      summary: { selector: ".description, .summary" },
+      agency: { selector: ".agency-name, .organisation" },
+      postedDate: { selector: ".published-date, td:nth-child(1)" },
+      dueDate: { selector: ".deadline, td:nth-child(4)" }
     },
-    jsonPaths: {
-      agency: ["organization.name", "buyer.name", "procuringEntity.name"]
-    },
-    xmlTags: {
-      id: ["NOTICE_ID", "NOTICE_NUMBER", "REFERENCE"],
-      title: ["TITLE", "SUBJECT"],
-      summary: ["DESCRIPTION", "SUMMARY"],
-      agency: ["ORGANISATION_NAME", "CONTRACTING_BODY"],
-      status: ["STATUS", "NOTICE_STATUS"],
-      url: ["URL", "NOTICE_URL"],
-      postedDate: ["DATE_PUB", "PUBLISHED_DATE"],
-      dueDate: ["DEADLINE", "DATE_CLOSING"]
-    }
+    nextPageSelector: "a.next-page, ul.pagination li.next a"
   }
 };

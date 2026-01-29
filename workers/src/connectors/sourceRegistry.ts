@@ -4,6 +4,7 @@ import { syncSamGov } from "./samGov";
 import { syncHrsa } from "./hrsa";
 import { syncTedEu } from "./tedEu";
 import { isBulkType, syncBulkSource } from "./bulkImport";
+import { syncScraperSource } from "./scraper";
 import { getSourceDefinition } from "../sources/registry";
 
 export interface SourceSyncOptions {
@@ -39,11 +40,18 @@ export async function syncFundingSource(
     return records;
   }
 
+  const def = getSourceDefinition(source.id);
+
+  // New: Selector-based Scraping Engine
+  if (source.integrationType === "manual_url" && def?.scraping) {
+    return syncScraperSource(env, ctx, source, rules, { url: options.url }, def.scraping);
+  }
+
   if (isBulkType(source.integrationType)) {
     if (!options.url && !source.autoUrl && source.integrationType === "manual_url") {
       throw new Error("Manual source requires a download URL.");
     }
-    const parsingProfile = getSourceDefinition(source.id)?.parsing;
+    const parsingProfile = def?.parsing;
     return syncBulkSource(env, ctx, source, rules, options, parsingProfile);
   }
 
