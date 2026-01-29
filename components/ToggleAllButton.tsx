@@ -10,9 +10,10 @@ interface ToggleAllButtonProps {
   action: (formData: FormData) => Promise<void>;
   allActive: boolean;
   totalCount: number;
+  readOnly?: boolean;
 }
 
-export default function ToggleAllButton({ action, allActive, totalCount }: ToggleAllButtonProps) {
+export default function ToggleAllButton({ action, allActive, totalCount, readOnly = false }: ToggleAllButtonProps) {
   const { logError } = useErrorLogger("ToggleAllButton");
   const router = useRouter();
   const [isToggling, setIsToggling] = useState(false);
@@ -28,6 +29,7 @@ export default function ToggleAllButton({ action, allActive, totalCount }: Toggl
   const isLoading = isToggling || isPending;
 
   const handleToggle = useCallback((checked: boolean) => {
+    if (readOnly) return;
     console.log(`ToggleAllButton: handleToggle called with checked=${checked}, current localState=${localState}, allActive=${allActive}`);
     
     // Prevent toggling if already in the desired state
@@ -75,25 +77,25 @@ export default function ToggleAllButton({ action, allActive, totalCount }: Toggl
         }, 1000);
       }
     });
-  }, [action, router, allActive, localState, logError]);
+  }, [action, router, allActive, localState, logError, readOnly]);
 
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
       <Switch.Root
         checked={localState}
         onCheckedChange={handleToggle}
-        disabled={isLoading}
+        disabled={isLoading || readOnly}
         style={{
           width: "44px",
           height: "24px",
           backgroundColor: localState ? "var(--primary)" : "#cbd5e1",
           borderRadius: "0",
           position: "relative",
-          cursor: isLoading ? "not-allowed" : "pointer",
+          cursor: isLoading || readOnly ? "not-allowed" : "pointer",
           border: "none",
           padding: 0,
           transition: "background-color 0.2s ease",
-          opacity: isLoading ? 0.7 : 1
+          opacity: isLoading || readOnly ? 0.7 : 1
         }}
       >
         <Switch.Thumb
@@ -119,9 +121,9 @@ export default function ToggleAllButton({ action, allActive, totalCount }: Toggl
           fontSize: "12px",
           opacity: isLoading ? 0.7 : 1
         }}
-        onClick={isLoading ? undefined : () => handleToggle(!localState)}
+        onClick={isLoading || readOnly ? undefined : () => handleToggle(!localState)}
       >
-        {localState ? "On" : "Off"}
+        {readOnly ? "Read-only" : localState ? "On" : "Off"}
       </Label.Root>
       <input
         id="toggle-all-input"

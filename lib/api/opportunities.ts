@@ -1,5 +1,6 @@
 import type { OpportunityDetail, OpportunitySearchResponse } from "../domain/types";
 import { getApiBaseUrl } from "../domain/constants";
+import { getCorrelationHeaders } from "../domain/correlation";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -24,7 +25,7 @@ export async function fetchOpportunities(params: {
   if (typeof params.limit === "number") url.searchParams.set("limit", params.limit.toString());
   if (params.mode) url.searchParams.set("mode", params.mode);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await fetch(url.toString(), { cache: "no-store", headers: getCorrelationHeaders() });
   if (!response.ok) {
     return {
       items: [],
@@ -42,7 +43,7 @@ export async function fetchOpportunities(params: {
 export async function fetchOpportunityById(id: string): Promise<OpportunityDetail | null> {
   if (!API_BASE_URL) return null;
   const url = new URL(`/api/opportunities/${id}`, API_BASE_URL);
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await fetch(url.toString(), { cache: "no-store", headers: getCorrelationHeaders() });
   if (!response.ok) return null;
   const payload = (await response.json()) as { item?: OpportunityDetail };
   return payload.item ?? null;

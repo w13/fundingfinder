@@ -1,5 +1,6 @@
 import type { ShortlistItem } from "../domain/types";
 import { getApiBaseUrl, getAuthHeaders } from "../domain/constants";
+import { getCorrelationHeaders } from "../domain/correlation";
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -8,7 +9,7 @@ export async function fetchShortlist(): Promise<{ items: ShortlistItem[]; warnin
     return { items: [], warning: "Set GRANT_SENTINEL_API_URL to your Worker API endpoint." };
   }
   try {
-    const response = await fetch(new URL("/api/shortlist", API_BASE_URL), { cache: "no-store" });
+    const response = await fetch(new URL("/api/shortlist", API_BASE_URL), { cache: "no-store", headers: getCorrelationHeaders() });
     if (!response.ok) {
       return { items: [], warning: `API error ${response.status}` };
     }
@@ -38,7 +39,8 @@ export async function addShortlist(opportunityId: string, source: string): Promi
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...getAuthHeaders()
+      ...getAuthHeaders(),
+      ...getCorrelationHeaders()
     },
     body: JSON.stringify({ opportunityId, source })
   });
@@ -51,7 +53,8 @@ export async function removeShortlist(shortlistId: string): Promise<boolean> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...getAuthHeaders()
+      ...getAuthHeaders(),
+      ...getCorrelationHeaders()
     },
     body: JSON.stringify({ shortlistId })
   });
@@ -64,7 +67,8 @@ export async function analyzeShortlist(shortlistIds?: string[]): Promise<boolean
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...getAuthHeaders()
+      ...getAuthHeaders(),
+      ...getCorrelationHeaders()
     },
     body: JSON.stringify({ shortlistIds })
   });

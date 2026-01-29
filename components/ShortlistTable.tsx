@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import type { ShortlistItem } from "../lib/domain/types";
 import { ScoreBadge } from "./ScoreBadge";
 import { formatSourceLabel } from "../lib/domain/format";
+import { useErrorLogger } from "../lib/errors/useErrorLogger";
 
 type SortField = "title" | "agency" | "source" | "feasibilityScore" | "suitabilityScore" | "profitabilityScore" | "postedDate" | "dueDate";
 type SortDirection = "asc" | "desc";
@@ -12,13 +13,19 @@ type SortDirection = "asc" | "desc";
 interface ShortlistTableProps {
   items: ShortlistItem[];
   onRemove: (formData: FormData) => Promise<void>;
+  onAnalyzeSelected: (shortlistIds: string[]) => Promise<void>;
+  readOnly?: boolean;
 }
 
-export default function ShortlistTable({ items, onRemove }: ShortlistTableProps) {
+export default function ShortlistTable({ items, onRemove, onAnalyzeSelected, readOnly = false }: ShortlistTableProps) {
+  const { logError } = useErrorLogger("ShortlistTable");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("feasibilityScore");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set());
+  const [isAnalyzingSelected, setIsAnalyzingSelected] = useState(false);
 
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return items;
@@ -93,6 +100,14 @@ export default function ShortlistTable({ items, onRemove }: ShortlistTableProps)
     return sorted;
   }, [filteredItems, sortField, sortDirection]);
 
+  const selectableIds = useMemo(() => filteredItems.map((item) => item.shortlistId), [filteredItems]);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+
+  useEffect(() => {
+    setSelectedIds((prev) => new Set(Array.from(prev).filter((id) => items.some((item) => item.shortlistId === id))));
+    setQueuedIds((prev) => new Set(Array.from(prev).filter((id) => items.some((item) => item.shortlistId === id))));
+  }, [items]);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -114,6 +129,40 @@ export default function ShortlistTable({ items, onRemove }: ShortlistTableProps)
     });
   };
 
+  const toggleSelected = (shortlistId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(shortlistId)) {
+        next.delete(shortlistId);
+      } else {
+        next.add(shortlistId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableIds));
+    }
+  };
+
+  const handleBulkAnalyze = async () => {
+    if (selectedIds.size === 0 || readOnly) return;
+    setIsAnalyzingSelected(true);
+    try {
+      const shortlistIds = Array.from(selectedIds);
+      await onAnalyzeSelected(shortlistIds);
+      setQueuedIds((prev) => new Set([...prev, ...shortlistIds]));
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error(String(error)), "high", { action: "bulkAnalyze" });
+    } finally {
+      setIsAnalyzingSelected(false);
+    }
+  };
+
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return (
@@ -125,7 +174,30 @@ export default function ShortlistTable({ items, onRemove }: ShortlistTableProps)
 
   return (
     <div>
-      <div style={{ marginBottom: "16px" }}>
+      <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <button
+            className="button button--secondary button--small"
+            type="button"
+            onClick={toggleSelectAll}
+            disabled={selectableIds.length === 0 || readOnly}
+          >
+            {allSelected ? "Clear selection" : "Select all"}
+          </button>
+          <button
+            className="button button--secondary button--small"
+            type="button"
+            onClick={handleBulkAnalyze}
+            disabled={selectedIds.size === 0 || isAnalyzingSelected || readOnly}
+          >
+            {isAnalyzingSelected ? "Queueing..." : `Analyze selected (${selectedIds.size})`}
+          </button>
+          {selectedIds.size > 0 && (
+            <span className="pill" style={{ fontSize: "11px" }}>
+              {selectedIds.size} selected
+            </span>
+          )}
+        </div>
         <div
           style={{
             position: "relative",
@@ -187,12 +259,20 @@ export default function ShortlistTable({ items, onRemove }: ShortlistTableProps)
             const analysisSummary = Array.isArray(item.analysisSummary) ? item.analysisSummary : [];
             const constraints = Array.isArray(item.constraints) ? item.constraints : [];
             const hasAnalysis = item.analyzed && (item.feasibilityScore !== null || analysisSummary.length > 0);
+            const isQueued = queuedIds.has(item.shortlistId) && !item.analyzed;
 
             return (
               <div key={item.shortlistId} className="card" style={{ padding: "16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
                   <div style={{ flex: 1, minWidth: "200px" }}>
                     <div style={{ display: "flex", alignItems: "start", gap: "8px", marginBottom: "8px" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.shortlistId)}
+                        onChange={() => toggleSelected(item.shortlistId)}
+                        disabled={readOnly}
+                        style={{ marginTop: "4px" }}
+                      />
                       <h3 style={{ margin: 0, fontSize: "16px", flex: 1 }}>{item.title}</h3>
                       {hasAnalysis && (
                         <span
@@ -207,6 +287,21 @@ export default function ShortlistTable({ items, onRemove }: ShortlistTableProps)
                           }}
                         >
                           Analyzed
+                        </span>
+                      )}
+                      {!hasAnalysis && isQueued && (
+                        <span
+                          style={{
+                            padding: "2px 6px",
+                            background: "#0ea5e9",
+                            color: "#fff",
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            borderRadius: "0"
+                          }}
+                        >
+                          Queued
                         </span>
                       )}
                     </div>
@@ -251,6 +346,7 @@ export default function ShortlistTable({ items, onRemove }: ShortlistTableProps)
                         type="submit"
                         className="button button--secondary"
                         style={{ fontSize: "13px" }}
+                        disabled={readOnly}
                       >
                         Remove
                       </button>

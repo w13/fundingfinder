@@ -35,14 +35,17 @@ export interface OpportunityRecord {
   version: number;
   versionHash: string;
   rawPayload: unknown;
+  diagnostics?: NormalizationDiagnostics;
 }
 
 export interface PdfJob {
+  jobId: string;
   opportunityId: string;
   source: SourceSystem;
   title: string;
   detailUrl: string | null;
   documentUrls: string[];
+  correlationId?: string | null;
 }
 
 export interface AnalysisResult {
@@ -92,8 +95,14 @@ export interface FundingSource {
   integrationType: SourceIntegrationType;
   autoUrl: string | null;
   expectedResults: number | null;
+  maxNotices: number | null;
+  keywordIncludes: string | null;
+  keywordExcludes: string | null;
+  language: string | null;
+  metadata: Record<string, unknown> | null;
   active: boolean;
   lastSync: string | null;
+  lastSuccessfulSync: string | null;
   lastStatus: string | null;
   lastError: string | null;
   lastIngested: number;
@@ -132,9 +141,119 @@ export interface Env {
   NOTIFICATION_WEBHOOK_URL?: string;
 }
 
+export type NotificationSeverity = "low" | "medium" | "high" | "critical";
+
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  type: "webhook" | "slack" | "email";
+  config: Record<string, unknown>;
+  severityThreshold: NotificationSeverity;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string | null;
+  source: string | null;
+  minScore: number | null;
+  mode: "smart" | "exact" | "any" | null;
+  createdAt: string;
+}
+
+export interface SearchClickEvent {
+  id: string;
+  query: string | null;
+  sourceFilter: string | null;
+  minScore: number | null;
+  mode: "smart" | "exact" | "any" | null;
+  opportunityId: string;
+  source: string;
+  resultId: string | null;
+  position: number | null;
+  correlationId: string | null;
+  createdAt: string;
+}
+
+export interface SourceSyncRun {
+  id: string;
+  sourceId: string;
+  status: "success" | "failed" | "syncing";
+  startedAt: string;
+  completedAt: string | null;
+  ingestedCount: number;
+  error: string | null;
+  correlationId: string | null;
+}
+
+export interface SourceHealthSummary {
+  sourceId: string;
+  lastSuccessfulSync: string | null;
+  errorRate: number;
+  ingestedLast24h: number;
+  recentFailures: number;
+  lastError: string | null;
+}
+
+export interface PdfJobMetrics {
+  queued: number;
+  processing: number;
+  completedLast24h: number;
+  failedLast24h: number;
+  avgProcessingMs: number | null;
+  lastCompletedAt: string | null;
+  lastFailureReason: string | null;
+}
+
+export interface FailedJob {
+  id: string;
+  jobType: string;
+  payload: Record<string, unknown>;
+  error: string | null;
+  attempts: number;
+  failedAt: string;
+  correlationId: string | null;
+}
+
+export interface NormalizationDiagnostics {
+  missingFields: string[];
+  guessedFields: string[];
+}
+
+export interface NormalizationDiagnosticsSummary {
+  source: string;
+  missingCounts: Record<string, number>;
+  guessedCounts: Record<string, number>;
+  lastSeenAt: string | null;
+}
+
+export interface SearchBoost {
+  id: string;
+  entityType: "source" | "agency";
+  entityValue: string;
+  boost: number;
+  updatedAt: string;
+}
+
+export interface SearchAnalyticsSummary {
+  topQueries: Array<{ query: string | null; clicks: number }>;
+  topSources: Array<{ source: string; clicks: number }>;
+  recentClicks: Array<{
+    query: string | null;
+    source: string;
+    opportunityId: string;
+    createdAt: string;
+    position: number | null;
+  }>;
+}
+
 export interface SyncSourcePayload {
   sourceId: string;
   options: { url?: string; maxNotices?: number };
+  correlationId?: string | null;
 }
 
 export type TaskPayload = SyncSourcePayload;

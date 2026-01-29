@@ -56,6 +56,7 @@ export async function syncGenericSource(
         // if (eligible) pdfJobs.push(...) with documentUrls: extract...
         // So we keep that.
         pdfJobs.push({
+          jobId: crypto.randomUUID(),
           opportunityId: result.record.opportunityId,
           source: config.source,
           title: result.record.title,

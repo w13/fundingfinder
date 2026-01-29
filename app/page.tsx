@@ -1,10 +1,14 @@
 import Link from "next/link";
 import SearchForm from "../components/SearchForm";
 import OpportunityList from "../components/OpportunityList";
+import WarningBanner from "../components/WarningBanner";
+import SavedSearchPanel from "../components/SavedSearchPanel";
 import { fetchOpportunities } from "../lib/api/opportunities";
 import { fetchSourceOptions } from "../lib/api/sources";
 import { fetchShortlist } from "../lib/api/shortlist";
+import { fetchSavedSearches } from "../lib/api/search";
 import { logServerError } from "../lib/errors/serverErrorLogger";
+import { isReadOnlyMode } from "../lib/domain/constants";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
@@ -22,7 +26,7 @@ export default async function Page({ searchParams }: PageProps) {
     const rawMode = typeof resolvedSearchParams?.mode === "string" ? resolvedSearchParams.mode : "smart";
     const resolvedMode = rawMode === "exact" || rawMode === "any" ? rawMode : "smart";
 
-    const [{ items, warning }, sourcesResult, shortlistResult] = await Promise.all([
+    const [{ items, warning }, sourcesResult, shortlistResult, savedSearchResult] = await Promise.all([
       fetchOpportunities({
         query: query || undefined,
         source: source || undefined,
@@ -39,12 +43,19 @@ export default async function Page({ searchParams }: PageProps) {
       fetchShortlist().catch((err) => {
         logServerError(err, { component: "Page", action: "fetchShortlist" });
         return { items: [], warning: `Failed to load shortlist: ${err instanceof Error ? err.message : "Unknown error"}` };
+      }),
+      fetchSavedSearches().catch((err) => {
+        logServerError(err, { component: "Page", action: "fetchSavedSearches" });
+        return { searches: [], warning: `Failed to load saved searches: ${err instanceof Error ? err.message : "Unknown error"}` };
       })
     ]);
 
   const shortlistKeys = shortlistResult.items.map((item) => `${item.source}:${item.opportunityId}`);
 
-  const combinedWarning = warning ?? sourcesResult.warning ?? shortlistResult.warning;
+  const combinedWarnings = [warning, sourcesResult.warning, shortlistResult.warning, savedSearchResult.warning].filter(Boolean);
+  const parsedMinScore = minScore ? Number(minScore) : null;
+  const minScoreNumber = parsedMinScore !== null && Number.isNaN(parsedMinScore) ? null : parsedMinScore;
+  const readOnly = isReadOnlyMode();
 
   return (
     <div className="grid">
@@ -53,11 +64,7 @@ export default async function Page({ searchParams }: PageProps) {
         <p className="hero__subtitle">
           AI-powered aggregator for government grants, tenders, and procurement opportunities worldwide.
         </p>
-        {combinedWarning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e" }}>
-            {combinedWarning}
-          </div>
-        ) : null}
+        <WarningBanner warnings={combinedWarnings} />
       </section>
 
       <section className="grid grid-3" style={{ marginBottom: "32px" }}>
@@ -100,9 +107,26 @@ export default async function Page({ searchParams }: PageProps) {
         </div>
       </section>
 
+      <SavedSearchPanel
+        initialSearches={savedSearchResult.searches ?? []}
+        currentSearch={{
+          query,
+          source,
+          minScore: minScoreNumber,
+          mode: resolvedMode
+        }}
+        readOnly={readOnly}
+      />
+
       <SearchForm query={query} source={source} minScore={minScore} mode={resolvedMode} sources={sourcesResult.sources} />
 
-      <OpportunityList items={items} shortlistKeys={shortlistKeys} showShortlistActions />
+      <OpportunityList
+        items={items}
+        shortlistKeys={shortlistKeys}
+        showShortlistActions
+        searchContext={{ query, source, minScore: minScoreNumber, mode: resolvedMode }}
+        readOnly={readOnly}
+      />
     </div>
   );
   } catch (error) {

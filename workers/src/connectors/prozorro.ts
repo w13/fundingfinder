@@ -62,6 +62,7 @@ export async function syncProzorro(
 
         if (result.eligibleForDeepDive && normalized.url) {
           pdfJobs.push({
+          jobId: crypto.randomUUID(),
             opportunityId: result.record.opportunityId,
             source: "prozorro_ua",
             title: result.record.title,

@@ -1,10 +1,13 @@
-import { fetchFundingSources, fetchAdminSummary, fetchExclusionRules } from "../../lib/api/admin";
+import Link from "next/link";
+import { fetchAdminOverview } from "../../lib/api/admin";
 import SourcesTable from "../../components/SourcesTable";
 import SyncAllButton from "../../components/SyncAllButton";
 import ToggleAllButton from "../../components/ToggleAllButton";
 import { INTEGRATION_TYPE_OPTIONS } from "../../lib/domain/constants";
 import { handleSync, handleToggle, handleSyncAll, handleSourceSync, handleSourceUpdate, handleRowSync, handleAddRule, handleDisableRule, handleToggleAll } from "./actions";
 import { logServerError } from "../../lib/errors/serverErrorLogger";
+import WarningBanner from "../../components/WarningBanner";
+import { isReadOnlyMode } from "../../lib/domain/constants";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
@@ -12,7 +15,7 @@ type PageProps = {
 
 type SyncStatus = "syncing" | "scheduled" | "success" | "failed" | "manual" | "inactive" | "never";
 
-function getSyncStatus(source: Awaited<ReturnType<typeof fetchFundingSources>>["sources"][0]): SyncStatus {
+function getSyncStatus(source: Awaited<ReturnType<typeof fetchAdminOverview>>["sources"][0]): SyncStatus {
   if (!source.active) return "inactive";
   
   if (source.lastStatus === "syncing") return "syncing";
@@ -85,48 +88,68 @@ export const dynamic = "force-dynamic";
 
 export default async function SourcesPage({ searchParams }: PageProps) {
   try {
-    const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : (searchParams ?? {});
-    
-    // Fetch data with error handling
-    let sourcesResult: Awaited<ReturnType<typeof fetchFundingSources>>;
-    let summaryResult: Awaited<ReturnType<typeof fetchAdminSummary>>;
-    let exclusionsResult: Awaited<ReturnType<typeof fetchExclusionRules>>;
+    let overviewResult: Awaited<ReturnType<typeof fetchAdminOverview>>;
 
     try {
-      [sourcesResult, summaryResult, exclusionsResult] = await Promise.all([
-        fetchFundingSources().catch((err) => {
-          logServerError(err, { component: "SourcesPage", action: "fetchFundingSources" });
-          return { sources: [], warning: `Failed to load sources: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchFundingSources>>;
-        }),
-        fetchAdminSummary().catch((err) => {
-          logServerError(err, { component: "SourcesPage", action: "fetchAdminSummary" });
-          return { summary: null, warning: `Failed to load summary: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchAdminSummary>>;
-        }),
-        fetchExclusionRules().catch((err) => {
-          logServerError(err, { component: "SourcesPage", action: "fetchExclusionRules" });
-          return { rules: [], warning: `Failed to load filters: ${err instanceof Error ? err.message : "Unknown error"}` } as Awaited<ReturnType<typeof fetchExclusionRules>>;
-        })
-    ]);
-  } catch (error) {
-    logServerError(error, { component: "SourcesPage", action: "fetchData" });
-    // Fallback to empty data
-    sourcesResult = { sources: [], warning: "Failed to load page data" };
-    summaryResult = { summary: null, warning: "Failed to load page data" };
-    exclusionsResult = { rules: [], warning: "Failed to load page data" };
-  }
+      overviewResult = await fetchAdminOverview().catch((err) => {
+        logServerError(err, { component: "SourcesPage", action: "fetchAdminOverview" });
+        return {
+          summary: null,
+          sources: [],
+          rules: [],
+          sourceHealth: [],
+          pdfMetrics: null,
+          warning: `Failed to load overview: ${err instanceof Error ? err.message : "Unknown error"}`
+        } as Awaited<ReturnType<typeof fetchAdminOverview>>;
+      });
+    } catch (error) {
+      logServerError(error, { component: "SourcesPage", action: "fetchAdminOverview" });
+      overviewResult = {
+        summary: null,
+        sources: [],
+        rules: [],
+        sourceHealth: [],
+        pdfMetrics: null,
+        warning: "Failed to load page data"
+      };
+    }
 
-  const sources = sourcesResult.sources;
+  const sources = overviewResult.sources;
+  const summary = overviewResult.summary;
+  const exclusions = overviewResult.rules;
+  const sourceHealth = overviewResult.sourceHealth;
+  const pdfMetrics = overviewResult.pdfMetrics;
+  const healthMap = new Map(sourceHealth.map((item) => [item.sourceId, item]));
+  const readOnly = isReadOnlyMode();
+  const adminKeyWarning = overviewResult.adminKeyConfigured === false ? "Admin API key not configured. Mutating actions will be blocked." : null;
 
   // Compute sync status, color, and label for each source on the server
   const sourcesWithStatus = sources.map((source) => {
     const status = getSyncStatus(source);
+    const health = healthMap.get(source.id) ?? {
+      sourceId: source.id,
+      lastSuccessfulSync: source.lastSuccessfulSync ?? null,
+      errorRate: source.lastStatus === "failed" ? 1 : 0,
+      ingestedLast24h: 0,
+      recentFailures: source.lastStatus === "failed" ? 1 : 0,
+      lastError: source.lastError ?? null
+    };
     return {
       ...source,
       syncStatus: status,
       statusColor: getStatusColor(status),
-      statusLabel: getStatusLabel(status)
+      statusLabel: getStatusLabel(status),
+      health
     };
   });
+
+  const activeSources = sources.filter((s) => s.active);
+  const failingSources = sourcesWithStatus.filter((s) => s.syncStatus === "failed");
+  const allFailing = activeSources.length > 0 && failingSources.length === activeSources.length;
+
+  const backlogStuck = pdfMetrics?.queued && pdfMetrics.lastCompletedAt
+    ? Date.now() - new Date(pdfMetrics.lastCompletedAt).getTime() > 24 * 60 * 60 * 1000
+    : false;
 
   return (
     <div className="grid">
@@ -139,44 +162,76 @@ export default async function SourcesPage({ searchParams }: PageProps) {
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <SyncAllButton 
               action={handleSyncAll} 
-              activeSources={sources.filter(s => s.active).map(s => ({ id: s.id, name: s.name }))}
+              activeSources={activeSources.map(s => ({ id: s.id, name: s.name }))}
+              readOnly={readOnly}
             />
           </div>
         </div>
-        {sourcesResult.warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", padding: "12px 16px", marginBottom: "24px" }}>
-            {sourcesResult.warning}
-          </div>
-        ) : null}
+        <WarningBanner warnings={[overviewResult.warning, adminKeyWarning].filter(Boolean)} />
       </section>
 
       {/* Overview Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "8px", marginBottom: "24px" }}>
         <div className="card" style={{ padding: "10px 12px" }}>
           <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total opportunities</p>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.totalOpportunities ?? 0}</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summary?.totalOpportunities ?? 0}</h3>
         </div>
         <div className="card" style={{ padding: "10px 12px" }}>
           <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>For-profit eligible</p>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.forProfitEligible ?? 0}</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summary?.forProfitEligible ?? 0}</h3>
         </div>
         <div className="card" style={{ padding: "10px 12px" }}>
           <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Analyzed w/ AI</p>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.analyzed ?? 0}</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summary?.analyzed ?? 0}</h3>
         </div>
         <div className="card" style={{ padding: "10px 12px" }}>
           <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>High feasibility</p>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.highFeasibility ?? 0}</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{summary?.highFeasibility ?? 0}</h3>
         </div>
         <div className="card" style={{ padding: "10px 12px" }}>
           <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Last update</p>
-          <h3 style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)", lineHeight: "1.2" }}>{summaryResult.summary?.lastUpdated ?? "N/A"}</h3>
+          <h3 style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)", lineHeight: "1.2" }}>{summary?.lastUpdated ?? "N/A"}</h3>
         </div>
         <div className="card" style={{ padding: "10px 12px" }}>
           <p className="muted" style={{ margin: 0, marginBottom: "4px", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active sources</p>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{sources.filter(s => s.active).length}</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)", lineHeight: "1.2" }}>{activeSources.length}</h3>
         </div>
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
+        <div className="card" style={{ padding: "16px" }}>
+          <h4 style={{ margin: "0 0 8px" }}>Source health</h4>
+          <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
+            {allFailing ? "All active sources are currently failing." : `${failingSources.length} sources failing in the last 30 days.`}
+          </p>
+        </div>
+        <div className="card" style={{ padding: "16px" }}>
+          <h4 style={{ margin: "0 0 8px" }}>24h ingestion</h4>
+          <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
+            {sourceHealth.reduce((sum, item) => sum + (item.ingestedLast24h ?? 0), 0).toLocaleString()} notices ingested in the last 24h.
+          </p>
+        </div>
+        <div className="card" style={{ padding: "16px" }}>
+          <h4 style={{ margin: "0 0 8px" }}>Processing pipeline</h4>
+          <p className="muted" style={{ margin: 0, fontSize: "13px" }}>
+            {pdfMetrics ? `${pdfMetrics.queued} queued · ${pdfMetrics.processing} processing · ${pdfMetrics.failedLast24h} failed (24h)` : "No PDF pipeline metrics yet."}
+          </p>
+          {backlogStuck && (
+            <p style={{ margin: "8px 0 0", fontSize: "12px", color: "#b45309" }}>
+              Backlog appears stuck (no completions in 24h).
+            </p>
+          )}
+        </div>
+      </div>
+
+      {sources.length === 0 && (
+        <div className="card" style={{ marginBottom: "24px" }}>
+          <h3 style={{ marginTop: 0 }}>No sources configured</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Add a source in the <Link href="/admin" style={{ color: "var(--primary)" }}>admin setup</Link> page to start ingestion.
+          </p>
+        </div>
+      )}
 
       {/* Sources Table */}
       <SourcesTable
@@ -187,11 +242,13 @@ export default async function SourcesPage({ searchParams }: PageProps) {
         handleSourceUpdate={handleSourceUpdate}
         handleRowSync={handleRowSync}
         integrationTypeOptions={INTEGRATION_TYPE_OPTIONS}
+        readOnly={readOnly}
         toggleAllComponent={
           <ToggleAllButton
             action={handleToggleAll}
             allActive={sources.length > 0 && sources.every(s => s.active)}
             totalCount={sources.length}
+            readOnly={readOnly}
           />
         }
       />
@@ -207,37 +264,31 @@ export default async function SourcesPage({ searchParams }: PageProps) {
           </div>
         </div>
         
-        {exclusionsResult.warning ? (
-          <div className="card card--flat" style={{ background: "#fef3c7", color: "#92400e", marginBottom: "20px", padding: "12px 16px" }}>
-            {exclusionsResult.warning}
-          </div>
-        ) : null}
-
         <div className="grid grid-2" style={{ marginBottom: "20px" }}>
           <div>
             <h4 style={{ margin: 0, marginBottom: "12px", fontSize: "14px", fontWeight: 600 }}>Add New Filter</h4>
             <form className="grid" action={handleAddRule} style={{ gap: "12px" }}>
               <label style={{ display: "grid", gap: "8px" }}>
                 <span className="pill" style={{ fontSize: "11px" }}>Filter Type</span>
-                <select className="select" name="ruleType" defaultValue="excluded_bureau">
+                <select className="select" name="ruleType" defaultValue="excluded_bureau" disabled={readOnly}>
                   <option value="excluded_bureau">Exclude bureau/agency</option>
                   <option value="priority_agency">Priority agency</option>
                 </select>
               </label>
               <label style={{ display: "grid", gap: "8px" }}>
                 <span className="pill" style={{ fontSize: "11px" }}>Agency/Bureau Name</span>
-                <input className="input" name="value" placeholder="e.g. USDA, Forestry, NIH" />
+                <input className="input" name="value" placeholder="e.g. USDA, Forestry, NIH" disabled={readOnly} />
               </label>
-              <button className="button" type="submit">
-                Add Filter
+              <button className="button" type="submit" disabled={readOnly}>
+                {readOnly ? "Read-only" : "Add Filter"}
               </button>
             </form>
           </div>
           <div>
             <h4 style={{ margin: 0, marginBottom: "12px", fontSize: "14px", fontWeight: 600 }}>Active Filters</h4>
-            {exclusionsResult.rules.length > 0 ? (
+            {exclusions.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {exclusionsResult.rules.map((rule) => (
+                {exclusions.map((rule) => (
                   <div
                     key={rule.id}
                     style={{
@@ -264,8 +315,9 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                         className="button button--secondary button--small"
                         type="submit"
                         style={{ padding: "4px 10px" }}
+                        disabled={readOnly}
                       >
-                        Remove
+                        {readOnly ? "Read-only" : "Remove"}
                       </button>
                     </form>
                   </div>

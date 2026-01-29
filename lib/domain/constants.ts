@@ -24,6 +24,13 @@ export function getApiBaseUrl(): string {
   return DEFAULT_API_URL;
 }
 
+export function isReadOnlyMode(): boolean {
+  if (typeof process !== "undefined" && process.env) {
+    return process.env.NEXT_PUBLIC_IS_READONLY === "true";
+  }
+  return false;
+}
+
 /**
  * Get authorization headers for server-side API calls.
  * WARNING: Only use this in server components or API routes - never in client-side code.

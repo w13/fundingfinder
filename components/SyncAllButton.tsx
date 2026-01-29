@@ -6,6 +6,7 @@ import { useErrorLogger } from "../lib/errors/useErrorLogger";
 interface SyncAllButtonProps {
   action: (formData?: FormData) => Promise<void>;
   activeSources?: Array<{ id: string; name: string }>;
+  readOnly?: boolean;
 }
 
 // Known sources that are synced in order (matching worker/src/index.ts runSync)
@@ -19,7 +20,7 @@ const KNOWN_SYNC_SOURCES = [
   { id: "austender_au", name: "AusTender" }
 ];
 
-export default function SyncAllButton({ action, activeSources = [] }: SyncAllButtonProps) {
+export default function SyncAllButton({ action, activeSources = [], readOnly = false }: SyncAllButtonProps) {
   const { logError } = useErrorLogger("SyncAllButton");
   const [isSyncing, setIsSyncing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -73,6 +74,7 @@ export default function SyncAllButton({ action, activeSources = [] }: SyncAllBut
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (readOnly) return;
     setIsSyncing(true);
     setCurrentStep(0);
     setCurrentMessage("Starting sync...");
@@ -107,7 +109,7 @@ export default function SyncAllButton({ action, activeSources = [] }: SyncAllBut
         <button
           className="button"
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || readOnly}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -136,7 +138,7 @@ export default function SyncAllButton({ action, activeSources = [] }: SyncAllBut
           >
             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
           </svg>
-          {isLoading ? "Syncing..." : "Sync All Sources"}
+          {isLoading ? "Syncing..." : readOnly ? "Read-only" : "Sync All Sources"}
           {isLoading && (
             <span
               style={{
